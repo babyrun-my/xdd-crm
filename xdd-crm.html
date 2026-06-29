@@ -253,7 +253,7 @@ tr:hover td{background:#fafbfc;}
     <div class="auth-form">
       <div class="fg">
         <label>é®ç®± Email</label>
-        <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+        <input type="email" id="login-email" style="display:none" placeholder="your@email.com" autocomplete="email">
       </div>
       <div class="fg">
         <label>å¯ç  Password</label>
@@ -469,7 +469,7 @@ function isAdmin() { return getUserRole()==='admin'; }
 // AUTH
 // ========================================
 async function doLogin() {
-  const email = document.getElementById('login-email').value.trim();
+  const email = 'adamadamling3339@gmail.com';
   const pass  = document.getElementById('login-pass').value;
   const alert = document.getElementById('auth-alert');
   alert.classList.add('hidden');

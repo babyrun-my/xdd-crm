@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小叮当服务团队群</title>
+<!--
+========================================
+SUPABASE SQL SETUP — 在 Supabase SQL Editor 里运行
+========================================
+
+create table customers (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  passport text not null,
+  followup text default '',
+  agent text default '',
+  project text default '',
+  submit_date text default '',
+  pass_to text default '',
+  extra_fee numeric default 0,
+  deposit numeric default 0,
+  cost_type text default 'RM',
+  price numeric default 0,
+  cost numeric default 0,
+  payment text default '',
+  visa_date text default '',
+  progress text default '待递交',
+  status text default '未完成',
+  month text default '',
+  note text default '',
+  created_at timestamptz default now()
+);
+
+create table projects (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  cost numeric default 0,
+  status text default '已启用',
+  sort_order int default 0,
+  created_at timestamptz default now()
+);
+
+create table finance (
+  id uuid default gen_random_uuid() primary key,
+  date text not null,
+  category text not null,
+  description text default '',
+  amount numeric not null default 0,
+  payment text default '',
+  person text default '',
+  note text default '',
+  status text default '已付款',
+  created_at timestamptz default now()
+);
+
+alter table customers enable row level security;
+alter table projects enable row level security;
+alter table finance enable row level security;
+
+create policy "all_customers" on customers for all using (true) with check (true);
+create policy "all_projects" on projects for all using (true) with check (true);
+create policy "all_finance" on finance for all using (true) with check (true);
+
+insert into projects (name, cost, status, sort_order) values
+('马来西亚借票',0,'已启用',1),('代办新护照/旅行证',0,'已启用',2),
+('无盖章激活',0,'已启用',3),('🚗刷签人去（当天好）',0,'已启用',4),
+('🚗刷签双系统',0,'已启用',5),('🚗盖章(7天-10天）',0,'已启用',6),
+('🚗盖章(3天-5天）',0,'已启用',7),('✈️盖章(7-10天)',0,'已启用',8),
+('设置柜台服务',0,'已启用',9),('罚款SP14天（一本一次）',0,'已启用',10),
+('罚款SP30天（一本一次）',0,'已启用',11),('西马一年女佣证',0,'已启用',12),
+('东马半年',0,'已启用',13),('东马一年',0,'已启用',14),
+('西马半年演绎证',0,'已启用',15),('西马半年老人签',0,'已启用',16),
+('西马续签4年中国结婚证',0,'已启用',17),('西马一年PVP',0,'已启用',18),
+('西马学生证两年（1年+1年)',0,'已启用',19),('马来西亚考驾校服务',0,'已启用',20),
+('一年工作签开银行服务',0,'已启用',21),('马来西亚电子签（EVISA）',0,'已启用',22),
+('APEC（马来西人）',0,'已启用',23),('马来西亚和中国双认证服务',0,'已启用',24),
+('VIP快速通道（提前3天）',0,'已启用',25);
+========================================
+-->
+<style>
+:root{
+  --bg:#0a1628;--bg2:#0f1f3d;--card:#fff;
+  --primary:#1a56db;--accent:#00b4d8;
+  --text:#1e293b;--text-light:#64748b;--text-white:#f1f5f9;
+  --border:#e2e8f0;--success:#10b981;--warning:#f59e0b;--danger:#ef4444;
+  --sw:220px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:var(--text);min-height:100vh;}
+
+/* AUTH */
+#auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0a1628 0%,#1a3a6b 100%);}
+.auth-card{background:#fff;border-radius:20px;padding:40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+.auth-logo{text-align:center;margin-bottom:28px;}
+.auth-logo .bell{font-size:52px;display:block;}
+.auth-logo h1{font-size:22px;color:var(--primary);font-weight:800;margin-top:8px;}
+.auth-logo p{font-size:13px;color:var(--text-light);margin-top:4px;}
+.auth-tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:24px;}
+.auth-tab{flex:1;padding:10px;text-align:center;font-size:14px;font-weight:600;cursor:pointer;color:var(--text-light);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s;}
+.auth-tab.active{color:var(--primary);border-bottom-color:var(--primary);}
+.auth-form{display:flex;flex-direction:column;gap:14px;}
+
+/* APP LAYOUT */
+#app{display:none;}
+.layout{display:flex;min-height:100vh;}
+.sidebar{width:var(--sw);background:var(--bg2);position:fixed;top:0;left:0;height:100vh;z-index:100;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.05);}
+.sb-logo{padding:20px 16px;border-bottom:1px solid rgba(255,255,255,.08);}
+.sb-logo h2{font-size:13px;font-weight:700;color:#fff;line-height:1.5;}
+.sb-logo p{font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;}
+.sb-bell{font-size:24px;display:block;margin-bottom:6px;}
+nav{flex:1;padding:10px 0;overflow-y:auto;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;font-size:13px;color:rgba(255,255,255,.65);transition:.2s;border-left:3px solid transparent;}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+.nav-item.active{background:rgba(26,86,219,.25);color:#fff;border-left-color:#3b82f6;}
+.nav-item .ni{font-size:17px;width:22px;text-align:center;}
+.sb-foot{padding:16px;border-top:1px solid rgba(255,255,255,.08);}
+.u-info{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.u-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#00b4d8);display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;flex-shrink:0;}
+.u-name{font-size:12px;color:#fff;font-weight:600;}
+.u-role{font-size:11px;color:rgba(255,255,255,.4);}
+.btn-logout{width:100%;padding:8px;background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.2);border-radius:8px;cursor:pointer;font-size:12px;}
+.btn-logout:hover{background:rgba(239,68,68,.25);}
+
+.main{margin-left:var(--sw);flex:1;min-height:100vh;}
+.topbar{background:#fff;padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+.topbar h1{font-size:17px;font-weight:700;color:var(--bg);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.page{padding:20px 24px;}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;}
+.stat{background:#fff;border-radius:12px;padding:16px;border-left:4px solid var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.stat.g{border-left-color:var(--success);}
+.stat.o{border-left-color:var(--warning);}
+.stat.r{border-left-color:var(--danger);}
+.stat.c{border-left-color:#8b5cf6;}
+.stat-lbl{font-size:11px;color:var(--text-light);margin-bottom:5px;}
+.stat-val{font-size:22px;font-weight:800;color:var(--bg);}
+.stat-sub{font-size:11px;color:var(--text-light);margin-top:3px;}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.card-title{font-size:14px;font-weight:700;color:var(--bg);}
+.card-body{padding:14px 18px;}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{background:#f8fafc;padding:9px 10px;text-align:left;font-weight:600;color:var(--text-light);border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:9px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tr:hover td{background:#fafbfc;}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.b-gray{background:#f1f5f9;color:#475569;}
+.b-blue{background:#dbeafe;color:#1e40af;}
+.b-green{background:#d1fae5;color:#065f46;}
+.b-yellow{background:#fef3c7;color:#92400e;}
+.b-red{background:#fee2e2;color:#991b1b;}
+.b-purple{background:#ede9fe;color:#5b21b6;}
+
+/* FORM */
+.form-card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.form-tag{display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:8px;}
+.form-title{font-size:18px;font-weight:800;color:var(--bg);}
+.form-sub{font-size:13px;color:var(--text-light);margin-top:4px;margin-bottom:24px;}
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+.fg label{font-size:13px;font-weight:600;color:var(--text);}
+.fg label .req{color:var(--danger);}
+.fg input,.fg select,.fg textarea{padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(26,86,219,.1);}
+.fg-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.hint{font-size:12px;color:var(--text-light);background:#f8fafc;padding:10px 14px;border-radius:8px;margin-top:4px;}
+.form-actions{display:flex;gap:10px;margin-top:20px;}
+
+/* BUTTONS */
+.btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--primary);color:#fff;}
+.btn-primary:hover{background:#1e40af;}
+.btn-secondary{background:#fff;color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover{background:#f8fafc;}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-success{background:var(--success);color:#fff;}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.btn-icon{padding:6px 8px;font-size:14px;}
+
+/* SEARCH BAR */
+.search-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);}
+.search-bar input,.search-bar select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;}
+.search-bar input{width:220px;}
+.search-bar input:focus,.search-bar select:focus{border-color:var(--primary);}
+.spacer{flex:1;}
+
+/* ALERTS */
+.alert{padding:11px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;}
+.alert-err{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;}
+.alert-ok{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;}
+
+/* LOADING */
+.loading{text-align:center;padding:40px;color:var(--text-light);}
+.spinner{display:inline-block;width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin-right:8px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal{background:#fff;border-radius:16px;padding:24px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto;}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;}
+.modal-close{cursor:pointer;font-size:20px;color:var(--text-light);}
+.modal-close:hover{color:var(--text);}
+
+/* PROGRESS SELECT */
+.prog-sel{padding:4px 8px;font-size:11px;border-radius:6px;border:1px solid var(--border);cursor:pointer;outline:none;}
+.status-sel{padding:4px 8px;font-size:11px;border-radius:6px;border:1px solid var(--border);cursor:pointer;outline:none;}
+
+/* EXPIRY */
+.exp-30{color:#dc2626;font-weight:700;}
+.exp-60{color:#d97706;font-weight:700;}
+.exp-90{color:#059669;}
+
+/* FINANCE STATUS */
+.fin-bar{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+.fin-stat{background:#fff;border-radius:10px;padding:12px 16px;border-left:3px solid var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.06);min-width:140px;}
+.fin-stat.g{border-left-color:var(--success);}
+.fin-stat.o{border-left-color:var(--warning);}
+.fin-stat.r{border-left-color:var(--danger);}
+.fin-lbl{font-size:11px;color:var(--text-light);}
+.fin-val{font-size:18px;font-weight:800;color:var(--bg);margin-top:2px;}
+
+.hidden{display:none!important;}
+
+/* CONFIG BANNER */
+.cfg-banner{background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #f59e0b;border-radius:12px;padding:16px 20px;margin-bottom:20px;}
+.cfg-banner h3{font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px;}
+.cfg-banner p{font-size:12px;color:#78350f;line-height:1.6;}
+.cfg-banner code{background:#fff;padding:1px 6px;border-radius:4px;font-size:11px;font-family:monospace;}
+</style>
+</head>
+<body>
+
+<!-- AUTH PAGE -->
+<div id="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="bell">🔔</span>
+      <h1>小叮当服务团队群</h1>
+      <p>签证管理系统 · Visa CRM</p>
+    </div>
+    <div id="auth-alert" class="alert alert-err hidden"></div>
+    <div class="auth-form">
+      <div class="fg">
+        <label>邮箱 Email</label>
+        <input type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="fg">
+        <label>密码 Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()" style="width:100%;justify-content:center;padding:12px;">
+        🚀 登录
+      </button>
+      <div style="text-align:center;font-size:12px;color:var(--text-light);margin-top:8px;">
+        首次使用？请联系管理员创建账号
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-logo">
+        <span class="sb-bell">🔔</span>
+        <h2>小叮当服务团队群</h2>
+        <p>Visa Management CRM</p>
+      </div>
+      <nav id="sidebar-nav">
+        <div class="nav-item active" data-page="dashboard">
+          <span class="ni">🏠</span> 首页
+        </div>
+        <div class="nav-item" data-page="customers">
+          <span class="ni">👥</span> 客户
+        </div>
+        <div class="nav-item admin-only" data-page="add-customer">
+          <span class="ni">➕</span> 新增客户
+        </div>
+        <div class="nav-item" data-page="projects">
+          <span class="ni">📋</span> 项目内容
+        </div>
+        <div class="nav-item admin-only" data-page="finance">
+          <span class="ni">💰</span> 财务
+        </div>
+        <div class="nav-item" data-page="archive">
+          <span class="ni">📁</span> 归档
+        </div>
+      </nav>
+      <div class="sb-foot">
+        <div class="u-info">
+          <div class="u-avatar">👤</div>
+          <div>
+            <div class="u-name" id="sidebar-user">-</div>
+            <div class="u-role" id="sidebar-role">-</div>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="doLogout()">🚪 退出登录</button>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <div class="topbar">
+        <h1 id="page-title">首页</h1>
+        <div class="topbar-right">
+          <span id="sync-status" style="font-size:12px;color:var(--text-light);"></span>
+        </div>
+      </div>
+      <div class="page" id="page-content">
+        <div class="loading"><div class="spinner"></div> 加载中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========================================
+// CONFIG — 填入你的 Supabase 信息
+// ========================================
+const SUPABASE_URL = 'https://kkxdhkqatalgxbsogyly.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGRoa3FhdGFsZ3hic29neWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDQ4NTksImV4cCI6MjA5ODI4MDg1OX0.ewte2esrv1cOFQ5GngSA7dZqJkHCyiCcUXErxKxlClk';
+const GS_WEBHOOK  = ''; // (可选) Google Sheets Apps Script URL
+
+// ========================================
+// SUPABASE API
+// ========================================
+let _token = null;
+let _user  = null;
+
+const sb = {
+  headers(extra={}) {
+    const h = { 'Content-Type':'application/json', 'apikey': SUPABASE_KEY, 'Prefer':'return=representation' };
+    if (_token) h['Authorization'] = 'Bearer ' + _token;
+    return Object.assign(h, extra);
+  },
+  async login(email, pass) {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method:'POST', headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
+      body: JSON.stringify({email, password:pass})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error_description || d.msg || '登录失败');
+    _token = d.access_token;
+    _user  = d.user;
+    localStorage.setItem('sb_token', _token);
+    localStorage.setItem('sb_user', JSON.stringify(_user));
+    return d;
+  },
+  logout() {
+    _token = null; _user = null;
+    localStorage.removeItem('sb_token');
+    localStorage.removeItem('sb_user');
+  },
+  restoreSession() {
+    _token = localStorage.getItem('sb_token');
+    const u = localStorage.getItem('sb_user');
+    if (u) _user = JSON.parse(u);
+    return !!_token;
+  },
+  async get(table, params='') {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: this.headers() });
+    if (!r.ok) { if(r.status===401){doLogout();return[];} throw new Error(await r.text()); }
+    return r.json();
+  },
+  async post(table, data) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method:'POST', headers: this.headers(), body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async patch(table, id, data) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method:'PATCH', headers: this.headers(), body: JSON.stringify(data)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.status === 204 ? {} : r.json();
+  },
+  async del(table, id) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method:'DELETE', headers: this.headers()
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return true;
+  }
+};
+
+// ========================================
+// GOOGLE SHEETS SYNC
+// ========================================
+async function syncToSheets(action, data) {
+  if (!GS_WEBHOOK) return;
+  try {
+    await fetch(GS_WEBHOOK, {
+      method:'POST',
+      body: JSON.stringify({ action, customer: data }),
+      headers:{'Content-Type':'application/json'}
+    });
+    setSyncStatus('✅ 已同步 Sheets');
+  } catch(e) {
+    setSyncStatus('⚠️ Sheets 同步失败');
+  }
+}
+function setSyncStatus(msg) {
+  const el = document.getElementById('sync-status');
+  if (el) { el.textContent = msg; setTimeout(()=>el.textContent='', 4000); }
+}
+
+// ========================================
+// HELPERS
+// ========================================
+const PROGRESS = ['待递交','待补资料','材料审核','处理中','审批中','已完成'];
+const FIN_CATS = ['每日Payout','赔钱','邮寄','车费','办公用品','平台费用','广告费用','其它'];
+const MONTHS_CN = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+function thisMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const diff = new Date(dateStr) - new Date();
+  return Math.ceil(diff / 86400000);
+}
+function fmt(n) {
+  return (n||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function progBadge(p) {
+  const map = {
+    '待递交':'b-yellow','待补资料':'b-red','材料审核':'b-blue',
+    '处理中':'b-purple','审批中':'b-blue','已完成':'b-green'
+  };
+  return `<span class="badge ${map[p]||'b-gray'}">${p||'-'}</span>`;
+}
+function statusBadge(s) {
+  return `<span class="badge ${s==='已完成'?'b-green':'b-yellow'}">${s||'-'}</span>`;
+}
+function expiryClass(days) {
+  if (days===null) return '';
+  if (days<=30) return 'exp-30';
+  if (days<=60) return 'exp-60';
+  if (days<=90) return 'exp-90';
+  return '';
+}
+function getUserRole() {
+  if (!_user) return 'agent';
+  const meta = _user.user_metadata || {};
+  return meta.role || 'admin'; // default admin for now
+}
+function isAdmin() { return getUserRole()==='admin'; }
+
+// ========================================
+// AUTH
+// ========================================
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const alert = document.getElementById('auth-alert');
+  alert.classList.add('hidden');
+  if (!email||!pass) { alert.textContent='请填写邮箱和密码'; alert.classList.remove('hidden'); return; }
+  try {
+    await sb.login(email, pass);
+    startApp();
+  } catch(e) {
+    alert.textContent = e.message;
+    alert.classList.remove('hidden');
+  }
+}
+function doLogout() {
+  sb.logout();
+  document.getElementById('auth-page').style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ========================================
+// ROUTER
+// ========================================
+let currentPage = 'dashboard';
+const PAGE_TITLES = {
+  dashboard:'🏠 首页', customers:'👥 客户管理', 'add-customer':'➕ 新增客户',
+  projects:'📋 项目内容', finance:'💰 财务', archive:'📁 归档'
+};
+const PAGE_RENDERERS = {
+  dashboard: renderDashboard,
+  customers: renderCustomers,
+  'add-customer': renderAddCustomer,
+  projects: renderProjects,
+  finance: renderFinance,
+  archive: renderArchive
+};
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.page === page);
+  });
+  document.getElementById('page-title').textContent = PAGE_TITLES[page] || page;
+  document.getElementById('page-content').innerHTML = '<div class="loading"><div class="spinner"></div> 加载中...</div>';
+  if (PAGE_RENDERERS[page]) PAGE_RENDERERS[page]();
+}
+
+document.getElementById('sidebar-nav').addEventListener('click', e => {
+  const item = e.target.closest('.nav-item');
+  if (item && item.dataset.page) navigate(item.dataset.page);
+});
+
+function startApp() {
+  document.getElementById('auth-page').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const email = _user?.email || '';
+  document.getElementById('sidebar-user').textContent = email.split('@')[0];
+  document.getElementById('sidebar-role').textContent = isAdmin() ? '👑 管理员' : '👤 代理';
+  if (!isAdmin()) {
+    document.querySelectorAll('.admin-only').forEach(el => el.classList.add('hidden'));
+  }
+  // Check config
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    document.getElementById('page-content').innerHTML = `
+      <div class="cfg-banner">
+        <h3>⚙️ 需要配置 Supabase</h3>
+        <p>请打开此 HTML 文件，找到顶部 <code>const SUPABASE_URL</code> 和 <code>const SUPABASE_KEY</code>，填入你的 Supabase 项目信息。</p>
+        <p style="margin-top:8px;">获取方法：Supabase 控制台 → Project Settings → API</p>
+      </div>`;
+    return;
+  }
+  navigate('dashboard');
+}
+
+// ========================================
+// DASHBOARD
+// ========================================
+async function renderDashboard() {
+  try {
+    const todayStr = today();
+    const monthStr = thisMonth();
+    const [customers, finance] = await Promise.all([
+      sb.get('customers','select=*&order=created_at.desc'),
+      sb.get('finance','select=*&order=created_at.desc')
+    ]);
+
+    const todayCusts = customers.filter(c => (c.created_at||'').startsWith(todayStr));
+    const monthCusts = customers.filter(c => (c.created_at||'').startsWith(monthStr));
+
+    const todayProfit = todayCusts.reduce((s,c) => s+(c.price-c.cost||0), 0);
+    const monthRevenue = monthCusts.reduce((s,c) => s+(c.price||0), 0);
+    const monthProfit  = monthCusts.reduce((s,c) => s+(c.price-c.cost||0), 0);
+
+    const pending_submit = customers.filter(c=>c.progress==='待递交'&&c.status!=='已完成').length;
+    const pending_docs   = customers.filter(c=>c.progress==='待补资料'&&c.status!=='已完成').length;
+    const pending_pay    = customers.filter(c=>c.deposit>0&&c.status!=='已完成').length;
+
+    const exp30 = customers.filter(c=>{const d=daysUntil(c.visa_date);return d!==null&&d<=30&&d>=0;}).length;
+    const exp60 = customers.filter(c=>{const d=daysUntil(c.visa_date);return d!==null&&d>30&&d<=60;}).length;
+    const exp90 = customers.filter(c=>{const d=daysUntil(c.visa_date);return d!==null&&d>60&&d<=90;}).length;
+
+    // Projects stats this month
+    const projMap = {};
+    monthCusts.forEach(c => {
+      if (!c.project) return;
+      if (!projMap[c.project]) projMap[c.project] = {count:0, amount:0};
+      projMap[c.project].count++;
+      projMap[c.project].amount += (c.price||0);
+    });
+    const projRows = Object.entries(projMap).sort((a,b)=>b[1].amount-a[1].amount).slice(0,8);
+
+    const todayPayout = finance.filter(f=>f.date===todayStr&&f.category==='每日Payout').reduce((s,f)=>s+(f.amount||0),0);
+
+    document.getElementById('page-content').innerHTML = `
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-lbl">📅 今日日期</div><div class="stat-val" style="font-size:16px;">${todayStr}</div></div>
+        <div class="stat g"><div class="stat-lbl">📝 今日单数</div><div class="stat-val">${todayCusts.length}</div></div>
+        <div class="stat g"><div class="stat-lbl">💵 今日利润</div><div class="stat-val" style="font-size:16px;">RM ${fmt(todayProfit)}</div></div>
+        <div class="stat"><div class="stat-lbl">👥 本月客户</div><div class="stat-val">${monthCusts.length}</div></div>
+        <div class="stat c"><div class="stat-lbl">💰 本月营业额</div><div class="stat-val" style="font-size:15px;">RM ${fmt(monthRevenue)}</div></div>
+        <div class="stat g"><div class="stat-lbl">📈 本月总利润</div><div class="stat-val" style="font-size:15px;">RM ${fmt(monthProfit)}</div></div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="card-head"><span class="card-title">⏳ 待处理</span></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#fef3c7;border-radius:8px;">
+                <span style="font-size:13px;font-weight:600;">📨 待递交</span>
+                <span class="badge b-yellow" style="font-size:14px;">${pending_submit}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#fee2e2;border-radius:8px;">
+                <span style="font-size:13px;font-weight:600;">📄 待补资料</span>
+                <span class="badge b-red" style="font-size:14px;">${pending_docs}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#dbeafe;border-radius:8px;">
+                <span style="font-size:13px;font-weight:600;">💳 待付尾款</span>
+                <span class="badge b-blue" style="font-size:14px;">${pending_pay}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">⏰ 签证到期提醒</span></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#fee2e2;border-radius:8px;">
+                <span style="font-size:13px;font-weight:600;">🔴 30天内到期</span>
+                <span class="badge b-red" style="font-size:14px;">${exp30}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#fef3c7;border-radius:8px;">
+                <span style="font-size:13px;font-weight:600;">🟡 60天内到期</span>
+                <span class="badge b-yellow" style="font-size:14px;">${exp60}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#d1fae5;border-radius:8px;">
+                <span style="font-size:13px;font-weight:600;">🟢 90天内到期</span>
+                <span class="badge b-green" style="font-size:14px;">${exp90}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="card-title">📊 项目内容 — 本月数据</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>项目名称</th><th>本月单数</th><th>本月金额</th></tr></thead>
+            <tbody>
+              ${projRows.length ? projRows.map(([name,d])=>`
+                <tr><td>${name}</td><td><span class="badge b-blue">${d.count}</span></td><td><strong>RM ${fmt(d.amount)}</strong></td></tr>
+              `).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--text-light);padding:20px;">本月暂无数据</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('page-content').innerHTML = `<div class="alert alert-err">加载失败: ${e.message}</div>`;
+  }
+}
+
+// ========================================
+// CUSTOMERS
+// ========================================
+let _customers = [];
+let _searchQ = '', _filterStatus = '', _filterProject = '', _filterMonth = '';
+
+async function renderCustomers() {
+  try {
+    _customers = await sb.get('customers','select=*&order=created_at.desc');
+    const projects = await sb.get('projects','select=name&status=eq.已启用&order=sort_order');
+    renderCustomerTable(projects);
+  } catch(e) {
+    document.getElementById('page-content').innerHTML = `<div class="alert alert-err">${e.message}</div>`;
+  }
+}
+
+function renderCustomerTable(projects) {
+  const months = [...new Set(_customers.map(c=>c.created_at?.slice(0,7)).filter(Boolean))].sort().reverse();
+  let filtered = _customers.filter(c => {
+    const q = _searchQ.toLowerCase();
+    const matchQ = !q || (c.name||'').toLowerCase().includes(q) || (c.passport||'').includes(q) || (c.agent||'').toLowerCase().includes(q) || (c.project||'').toLowerCase().includes(q);
+    const matchS = !_filterStatus || c.status === _filterStatus;
+    const matchP = !_filterProject || c.project === _filterProject;
+    const matchM = !_filterMonth || (c.created_at||'').startsWith(_filterMonth);
+    return matchQ && matchS && matchP && matchM;
+  });
+
+  document.getElementById('page-content').innerHTML = `
+    <div class="card">
+      <div class="search-bar">
+        <input type="text" placeholder="🔍 搜索姓名/护照/代理/项目..." value="${_searchQ}" oninput="_searchQ=this.value;renderCustomerTable()" id="cust-search">
+        <select onchange="_filterStatus=this.value;renderCustomerTable()">
+          <option value="">全部状态</option>
+          <option value="未完成" ${_filterStatus==='未完成'?'selected':''}>未完成</option>
+          <option value="已完成" ${_filterStatus==='已完成'?'selected':''}>已完成</option>
+        </select>
+        <select onchange="_filterProject=this.value;renderCustomerTable()">
+          <option value="">全部项目</option>
+          ${(projects||[]).map(p=>`<option value="${p.name}" ${_filterProject===p.name?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+        <select onchange="_filterMonth=this.value;renderCustomerTable()">
+          <option value="">全部月份</option>
+          ${months.map(m=>`<option value="${m}" ${_filterMonth===m?'selected':''}>${m}</option>`).join('')}
+        </select>
+        <span class="spacer"></span>
+        <span style="font-size:12px;color:var(--text-light);">${filtered.length} 条记录</span>
+        <button class="btn btn-primary btn-sm" onclick="navigate('add-customer')">➕ 新增客户</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>NO.</th><th>姓名</th><th>护照号</th><th>跟进人</th><th>项目内容</th><th>代理</th>
+            <th>卖价(RM)</th><th>本钱(RM)</th><th>利润(RM)</th>
+            <th>押金(RM)</th><th>支付方式</th><th>签证到期</th><th>倒数VALID</th>
+            <th>当前进度</th><th>状态</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            ${filtered.length ? filtered.map((c,i)=>{
+              const days = daysUntil(c.visa_date);
+              const profit = (c.price||0)-(c.cost||0);
+              return `<tr>
+                <td>${filtered.length-i}</td>
+                <td><strong>${c.name||'-'}</strong></td>
+                <td>${c.passport||'-'}</td>
+                <td>${c.followup||'-'}</td>
+                <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.project||''}">${c.project||'-'}</td>
+                <td>${c.agent||'-'}</td>
+                <td>${fmt(c.price)}</td>
+                <td>${fmt(c.cost)}</td>
+                <td class="${profit>0?'':'exp-30'}"><strong>${fmt(profit)}</strong></td>
+                <td>${fmt(c.deposit)}</td>
+                <td>${c.payment||'-'}</td>
+                <td>${c.visa_date||'-'}</td>
+                <td class="${expiryClass(days)}">${days!==null?(days>0?days+'天':'已到期'):'-'}</td>
+                <td>
+                  <select class="prog-sel" onchange="updateField('${c.id}','progress',this.value,event)">
+                    ${PROGRESS.map(p=>`<option ${c.progress===p?'selected':''}>${p}</option>`).join('')}
+                  </select>
+                </td>
+                <td>
+                  <select class="status-sel" onchange="updateField('${c.id}','status',this.value,event)">
+                    <option ${c.status==='未完成'?'selected':''}>未完成</option>
+                    <option ${c.status==='已完成'?'selected':''}>已完成</option>
+                  </select>
+                </td>
+                <td style="white-space:nowrap;">
+                  <button class="btn btn-secondary btn-sm btn-icon" onclick="editCustomer('${c.id}')" title="编辑">✏️</button>
+                  ${isAdmin()?`<button class="btn btn-danger btn-sm btn-icon" onclick="deleteCustomer('${c.id}','${(c.name||'').replace(/'/g,'')}')" title="删除">🗑️</button>`:''}
+                </td>
+              </tr>`;
+            }).join('') : '<tr><td colspan="16" style="text-align:center;padding:30px;color:var(--text-light);">暂无数据</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function updateField(id, field, val, e) {
+  try {
+    await sb.patch('customers', id, {[field]: val});
+    const idx = _customers.findIndex(c=>c.id===id);
+    if (idx>=0) _customers[idx][field] = val;
+  } catch(err) {
+    alert('更新失败: ' + err.message);
+  }
+}
+
+async function deleteCustomer(id, name) {
+  if (!confirm(`确认删除客户 ${name}?`)) return;
+  try {
+    await sb.del('customers', id);
+    _customers = _customers.filter(c=>c.id!==id);
+    renderCustomerTable();
+  } catch(e) { alert('删除失败: '+e.message); }
+}
+
+// ========================================
+// ADD CUSTOMER (Agent simplified)
+// ========================================
+async function renderAddCustomer() {
+  const projects = await sb.get('projects','select=name,cost&status=eq.已启用&order=sort_order');
+  document.getElementById('page-content').innerHTML = `
+    <div class="form-card" style="max-width:580px;">
+      <span class="form-tag">👤 代理专用</span>
+      <div class="form-title">新增客户</div>
+      <div class="form-sub">代理简化版 · 快速录入客户资料</div>
+      <div id="add-alert"></div>
+      <div class="fg-row">
+        <div class="fg">
+          <label>护照姓名 <span class="req">*</span></label>
+          <input type="text" id="f-name" placeholder="客户护照名字">
+        </div>
+        <div class="fg">
+          <label>护照号 <span class="req">*</span></label>
+          <input type="text" id="f-passport" placeholder="护照号码">
+        </div>
+      </div>
+      <div class="fg">
+        <label>项目内容 <span class="req">*</span></label>
+        <select id="f-project">
+          <option value="">— 请选择项目 —</option>
+          ${projects.map(p=>`<option value="${p.name}" data-cost="${p.cost}">${p.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fg-row">
+        <div class="fg">
+          <label>卖价 (RM) <span class="req">*</span></label>
+          <input type="number" id="f-price" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="fg">
+          <label>押金 (RM) <span class="req">*</span></label>
+          <input type="number" id="f-deposit" placeholder="0.00" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="fg-row">
+        <div class="fg">
+          <label>代理负责人 <span class="req">*</span></label>
+          <input type="text" id="f-agent" placeholder="代理姓名">
+        </div>
+        <div class="fg">
+          <label>跟进人</label>
+          <input type="text" id="f-followup" placeholder="跟进员工">
+        </div>
+      </div>
+      <div class="fg">
+        <label>支付方式</label>
+        <select id="f-payment">
+          <option value="">— 选择 —</option>
+          <option>现金</option><option>转账</option><option>微信</option>
+          <option>支付宝</option><option>TNG</option><option>其它</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>备注</label>
+        <textarea id="f-note" rows="2" placeholder="备注..."></textarea>
+      </div>
+      <p class="hint">⚠️ 除支付方式外，其它栏位为必填，填写完成后才能保存客户。</p>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="navigate('customers')">取消</button>
+        <button class="btn btn-primary" onclick="saveCustomer()">💾 保存客户</button>
+      </div>
+    </div>
+  `;
+  // Auto-fill cost when project selected
+  document.getElementById('f-project').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    const cost = opt.dataset.cost || 0;
+    // Don't auto-fill price, just store cost
+  });
+}
+
+async function saveCustomer() {
+  const name     = document.getElementById('f-name').value.trim();
+  const passport = document.getElementById('f-passport').value.trim();
+  const project  = document.getElementById('f-project').value;
+  const price    = parseFloat(document.getElementById('f-price').value)||0;
+  const deposit  = parseFloat(document.getElementById('f-deposit').value)||0;
+  const agent    = document.getElementById('f-agent').value.trim();
+  const followup = document.getElementById('f-followup').value.trim();
+  const payment  = document.getElementById('f-payment').value;
+  const note     = document.getElementById('f-note').value.trim();
+  const alertEl  = document.getElementById('add-alert');
+
+  if (!name||!passport||!project||!price||!agent) {
+    alertEl.innerHTML = '<div class="alert alert-err">⚠️ 请填写所有必填栏位（姓名、护照号、项目、卖价、代理）</div>';
+    return;
+  }
+
+  // Get cost from selected project
+  const projSel = document.getElementById('f-project');
+  const projOpt = projSel.options[projSel.selectedIndex];
+  const cost = parseFloat(projOpt?.dataset?.cost)||0;
+
+  const d = new Date();
+  const month = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+
+  const data = { name, passport, project, price, deposit, agent, followup, payment, note, cost, month,
+    cost_type:'RM', progress:'待递交', status:'未完成', submit_date: today() };
+
+  try {
+    const rows = await sb.post('customers', data);
+    alertEl.innerHTML = '<div class="alert alert-ok">✅ 客户已保存！</div>';
+    // Sync to Google Sheets
+    await syncToSheets('add', rows[0]||data);
+    setTimeout(()=>navigate('customers'), 1500);
+  } catch(e) {
+    alertEl.innerHTML = `<div class="alert alert-err">保存失败: ${e.message}</div>`;
+  }
+}
+
+// ========================================
+// EDIT CUSTOMER (MODAL)
+// ========================================
+async function editCustomer(id) {
+  const c = _customers.find(x=>x.id===id);
+  if (!c) return;
+  const projects = await sb.get('projects','select=name&status=eq.已启用&order=sort_order');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-bg';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">
+        ✏️ 编辑客户 — ${c.name}
+        <span class="modal-close" onclick="this.closest('.modal-bg').remove()">✕</span>
+      </div>
+      <div id="edit-alert"></div>
+      <div class="fg-row">
+        <div class="fg"><label>护照姓名</label><input id="e-name" value="${c.name||''}"></div>
+        <div class="fg"><label>护照号</label><input id="e-passport" value="${c.passport||''}"></div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>跟进人</label><input id="e-followup" value="${c.followup||''}"></div>
+        <div class="fg"><label>代理名字</label><input id="e-agent" value="${c.agent||''}"></div>
+      </div>
+      <div class="fg">
+        <label>项目内容</label>
+        <select id="e-project">
+          ${projects.map(p=>`<option ${c.project===p.name?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>卖价(RM)</label><input type="number" id="e-price" value="${c.price||0}" step="0.01"></div>
+        <div class="fg"><label>本钱(RM)</label><input type="number" id="e-cost" value="${c.cost||0}" step="0.01"></div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>押金(RM)</label><input type="number" id="e-deposit" value="${c.deposit||0}" step="0.01"></div>
+        <div class="fg"><label>Extra Fee(RM)</label><input type="number" id="e-extra" value="${c.extra_fee||0}" step="0.01"></div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>Pass To</label><input id="e-passto" value="${c.pass_to||''}"></div>
+        <div class="fg"><label>支付方式</label>
+          <select id="e-payment">
+            <option value="">—</option>
+            ${['现金','转账','微信','支付宝','TNG','其它'].map(x=>`<option ${c.payment===x?'selected':''}>${x}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>递交日期</label><input type="date" id="e-submit" value="${c.submit_date||''}"></div>
+        <div class="fg"><label>签证有效期</label><input type="date" id="e-visa" value="${c.visa_date||''}"></div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>当前进度</label>
+          <select id="e-progress">
+            ${PROGRESS.map(p=>`<option ${c.progress===p?'selected':''}>${p}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg"><label>状态</label>
+          <select id="e-status">
+            <option ${c.status==='未完成'?'selected':''}>未完成</option>
+            <option ${c.status==='已完成'?'selected':''}>已完成</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label>备注</label><textarea id="e-note" rows="2">${c.note||''}</textarea></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-bg').remove()">取消</button>
+        <button class="btn btn-primary" onclick="saveEdit('${id}')">💾 保存修改</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function saveEdit(id) {
+  const data = {
+    name:      document.getElementById('e-name').value.trim(),
+    passport:  document.getElementById('e-passport').value.trim(),
+    followup:  document.getElementById('e-followup').value.trim(),
+    agent:     document.getElementById('e-agent').value.trim(),
+    project:   document.getElementById('e-project').value,
+    price:     parseFloat(document.getElementById('e-price').value)||0,
+    cost:      parseFloat(document.getElementById('e-cost').value)||0,
+    deposit:   parseFloat(document.getElementById('e-deposit').value)||0,
+    extra_fee: parseFloat(document.getElementById('e-extra').value)||0,
+    pass_to:   document.getElementById('e-passto').value.trim(),
+    payment:   document.getElementById('e-payment').value,
+    submit_date: document.getElementById('e-submit').value,
+    visa_date: document.getElementById('e-visa').value,
+    progress:  document.getElementById('e-progress').value,
+    status:    document.getElementById('e-status').value,
+    note:      document.getElementById('e-note').value.trim()
+  };
+  try {
+    await sb.patch('customers', id, data);
+    const idx = _customers.findIndex(c=>c.id===id);
+    if (idx>=0) _customers[idx] = {..._customers[idx], ...data};
+    document.querySelector('.modal-bg').remove();
+    renderCustomerTable();
+    await syncToSheets('update', {id, ...data});
+  } catch(e) {
+    document.getElementById('edit-alert').innerHTML = `<div class="alert alert-err">${e.message}</div>`;
+  }
+}
+
+// ========================================
+// PROJECTS
+// ========================================
+async function renderProjects() {
+  try {
+    const rows = await sb.get('projects','select=*&order=sort_order,created_at');
+    document.getElementById('page-content').innerHTML = `
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">📋 项目内容管理</span>
+          <button class="btn btn-primary btn-sm" onclick="showAddProject()">➕ 新增项目</button>
+        </div>
+        <div id="proj-alert"></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>NO.</th><th>项目名称</th><th>本钱(RM)</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="proj-tbody">
+              ${rows.map((p,i)=>`
+                <tr id="proj-row-${p.id}">
+                  <td>${i+1}</td>
+                  <td>${p.name}</td>
+                  <td>RM ${fmt(p.cost)}</td>
+                  <td><span class="badge ${p.status==='已启用'?'b-green':'b-gray'}">${p.status}</span></td>
+                  <td style="white-space:nowrap;">
+                    <button class="btn btn-secondary btn-sm" onclick="editProject('${p.id}','${p.name.replace(/'/g,'\\'')}',${p.cost},'${p.status}')">✏️</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">🗑️</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('page-content').innerHTML = `<div class="alert alert-err">${e.message}</div>`;
+  }
+}
+
+function showAddProject() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-bg';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-title">➕ 新增项目 <span class="modal-close" onclick="this.closest('.modal-bg').remove()">✕</span></div>
+      <div class="fg"><label>项目名称 <span class="req">*</span></label><input id="np-name" placeholder="项目名称"></div>
+      <div class="fg"><label>本钱(RM)</label><input type="number" id="np-cost" value="0" step="0.01"></div>
+      <div class="fg"><label>状态</label>
+        <select id="np-status"><option>已启用</option><option>暂停服务</option></select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-bg').remove()">取消</button>
+        <button class="btn btn-primary" onclick="addProject()">保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function addProject() {
+  const name = document.getElementById('np-name').value.trim();
+  const cost = parseFloat(document.getElementById('np-cost').value)||0;
+  const status = document.getElementById('np-status').value;
+  if (!name) { alert('请填写项目名称'); return; }
+  try {
+    await sb.post('projects',{name,cost,status});
+    document.querySelector('.modal-bg').remove();
+    renderProjects();
+  } catch(e) { alert(e.message); }
+}
+
+function editProject(id, name, cost, status) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-bg';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-title">✏️ 编辑项目 <span class="modal-close" onclick="this.closest('.modal-bg').remove()">✕</span></div>
+      <div class="fg"><label>项目名称</label><input id="ep-name" value="${name}"></div>
+      <div class="fg"><label>本钱(RM)</label><input type="number" id="ep-cost" value="${cost}" step="0.01"></div>
+      <div class="fg"><label>状态</label>
+        <select id="ep-status">
+          <option ${status==='已启用'?'selected':''}>已启用</option>
+          <option ${status==='暂停服务'?'selected':''}>暂停服务</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-bg').remove()">取消</button>
+        <button class="btn btn-primary" onclick="saveProject('${id}')">保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function saveProject(id) {
+  const name = document.getElementById('ep-name').value.trim();
+  const cost = parseFloat(document.getElementById('ep-cost').value)||0;
+  const status = document.getElementById('ep-status').value;
+  try {
+    await sb.patch('projects',id,{name,cost,status});
+    document.querySelector('.modal-bg').remove();
+    renderProjects();
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteProject(id) {
+  if (!confirm('确认删除此项目？')) return;
+  try { await sb.del('projects',id); renderProjects(); } catch(e) { alert(e.message); }
+}
+
+// ========================================
+// FINANCE
+// ========================================
+let _finCat = '', _finMonth = '', _finSearch = '';
+async function renderFinance() {
+  try {
+    const rows = await sb.get('finance','select=*&order=date.desc,created_at.desc');
+    const todayStr = today();
+    const monthStr = thisMonth();
+
+    const todayPayout = rows.filter(f=>f.date===todayStr&&f.category==='每日Payout').reduce((s,f)=>s+(f.amount||0),0);
+    const monthLoss   = rows.filter(f=>f.date?.startsWith(monthStr)&&f.category==='赔钱').reduce((s,f)=>s+(f.amount||0),0);
+    const monthPost   = rows.filter(f=>f.date?.startsWith(monthStr)&&f.category==='邮寄').reduce((s,f)=>s+(f.amount||0),0);
+    const monthCar    = rows.filter(f=>f.date?.startsWith(monthStr)&&f.category==='车费').reduce((s,f)=>s+(f.amount||0),0);
+    const monthTotal  = rows.filter(f=>f.date?.startsWith(monthStr)).reduce((s,f)=>s+(f.amount||0),0);
+
+    const months = [...new Set(rows.map(f=>f.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+
+    let filtered = rows.filter(f=>{
+      const q = _finSearch.toLowerCase();
+      const mq = !q||(f.description||'').toLowerCase().includes(q)||(f.person||'').toLowerCase().includes(q);
+      const mc = !_finCat||f.category===_finCat;
+      const mm = !_finMonth||f.date?.startsWith(_finMonth);
+      return mq&&mc&&mm;
+    });
+
+    document.getElementById('page-content').innerHTML = `
+      <div class="fin-bar">
+        <div class="fin-stat"><div class="fin-lbl">今日 Payout</div><div class="fin-val">RM ${fmt(todayPayout)}</div></div>
+        <div class="fin-stat r"><div class="fin-lbl">本月赔钱</div><div class="fin-val">RM ${fmt(monthLoss)}</div></div>
+        <div class="fin-stat o"><div class="fin-lbl">本月邮寄</div><div class="fin-val">RM ${fmt(monthPost)}</div></div>
+        <div class="fin-stat"><div class="fin-lbl">本月车费</div><div class="fin-val">RM ${fmt(monthCar)}</div></div>
+        <div class="fin-stat g"><div class="fin-lbl">本月总支出</div><div class="fin-val">RM ${fmt(monthTotal)}</div></div>
+      </div>
+      <div class="card">
+        <div class="search-bar">
+          <input placeholder="🔍 搜索项目/负责人..." oninput="_finSearch=this.value;renderFinance()" value="${_finSearch}">
+          <select onchange="_finCat=this.value;renderFinance()">
+            <option value="">全部分类</option>
+            ${FIN_CATS.map(c=>`<option ${_finCat===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+          <select onchange="_finMonth=this.value;renderFinance()">
+            <option value="">全部月份</option>
+            ${months.map(m=>`<option ${_finMonth===m?'selected':''}>${m}</option>`).join('')}
+          </select>
+          <span class="spacer"></span>
+          <button class="btn btn-primary btn-sm" onclick="showAddFinance()">➕ 新增记录</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>日期</th><th>分类</th><th>项目说明</th><th>金额(RM)</th><th>支付方式</th><th>负责人</th><th>状态</th><th>备注</th><th>操作</th></tr></thead>
+            <tbody>
+              ${filtered.length ? filtered.map(f=>`
+                <tr>
+                  <td>${f.date}</td>
+                  <td><span class="badge b-blue">${f.category}</span></td>
+                  <td>${f.description||'-'}</td>
+                  <td><strong>RM ${fmt(f.amount)}</strong></td>
+                  <td>${f.payment||'-'}</td>
+                  <td>${f.person||'-'}</td>
+                  <td><span class="badge ${f.status==='已付款'?'b-green':f.status==='待付款'?'b-yellow':'b-red'}">${f.status}</span></td>
+                  <td>${f.note||'-'}</td>
+                  <td style="white-space:nowrap;">
+                    <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinance('${f.id}')">🗑️</button>
+                  </td>
+                </tr>
+              `).join('') : '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-light);">暂无记录</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('page-content').innerHTML = `<div class="alert alert-err">${e.message}</div>`;
+  }
+}
+
+function showAddFinance() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-bg';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-title">➕ 新增财务记录 <span class="modal-close" onclick="this.closest('.modal-bg').remove()">✕</span></div>
+      <div class="fg-row">
+        <div class="fg"><label>日期 <span class="req">*</span></label><input type="date" id="nf-date" value="${today()}"></div>
+        <div class="fg"><label>分类 <span class="req">*</span></label>
+          <select id="nf-cat"><option value="">— 选择 —</option>${FIN_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="fg"><label>项目说明</label><input id="nf-desc" placeholder="说明内容"></div>
+      <div class="fg-row">
+        <div class="fg"><label>金额(RM) <span class="req">*</span></label><input type="number" id="nf-amt" placeholder="0.00" step="0.01"></div>
+        <div class="fg"><label>支付方式</label>
+          <select id="nf-pay"><option value="">—</option><option>现金</option><option>转账</option><option>微信</option><option>其它</option></select>
+        </div>
+      </div>
+      <div class="fg-row">
+        <div class="fg"><label>负责人</label><input id="nf-person" placeholder="姓名"></div>
+        <div class="fg"><label>状态</label>
+          <select id="nf-status"><option>已付款</option><option>待付款</option><option>需确认</option></select>
+        </div>
+      </div>
+      <div class="fg"><label>备注</label><textarea id="nf-note" rows="2" placeholder="备注..."></textarea></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-bg').remove()">取消</button>
+        <button class="btn btn-primary" onclick="saveFinance()">💾 保存</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function saveFinance() {
+  const date   = document.getElementById('nf-date').value;
+  const cat    = document.getElementById('nf-cat').value;
+  const amt    = parseFloat(document.getElementById('nf-amt').value)||0;
+  if (!date||!cat||!amt) { alert('请填写日期、分类和金额'); return; }
+  const data = {
+    date, category:cat,
+    description: document.getElementById('nf-desc').value,
+    amount: amt,
+    payment: document.getElementById('nf-pay').value,
+    person: document.getElementById('nf-person').value,
+    status: document.getElementById('nf-status').value,
+    note: document.getElementById('nf-note').value
+  };
+  try {
+    await sb.post('finance', data);
+    document.querySelector('.modal-bg').remove();
+    renderFinance();
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteFinance(id) {
+  if (!confirm('确认删除此记录？')) return;
+  try { await sb.del('finance',id); renderFinance(); } catch(e) { alert(e.message); }
+}
+
+// ========================================
+// ARCHIVE (已完成客户)
+// ========================================
+async function renderArchive() {
+  try {
+    const rows = await sb.get('customers','select=*&status=eq.已完成&order=created_at.desc');
+    document.getElementById('page-content').innerHTML = `
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">📁 归档 — 已完成客户 (${rows.length})</span>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>NO.</th><th>姓名</th><th>护照号</th><th>项目</th><th>代理</th><th>卖价</th><th>利润</th><th>签证到期</th><th>完成日期</th></tr></thead>
+            <tbody>
+              ${rows.length ? rows.map((c,i)=>`
+                <tr>
+                  <td>${i+1}</td>
+                  <td><strong>${c.name}</strong></td>
+                  <td>${c.passport}</td>
+                  <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.project||'-'}</td>
+                  <td>${c.agent||'-'}</td>
+                  <td>RM ${fmt(c.price)}</td>
+                  <td><strong>RM ${fmt((c.price||0)-(c.cost||0))}</strong></td>
+                  <td>${c.visa_date||'-'}</td>
+                  <td>${c.created_at?.slice(0,10)||'-'}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-light);">暂无已完成客户</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('page-content').innerHTML = `<div class="alert alert-err">${e.message}</div>`;
+  }
+}
+
+// ========================================
+// INIT
+// ========================================
+(function init() {
+  if (sb.restoreSession()) {
+    startApp();
+  }
+})();
+</script>
+</body>
+</html>

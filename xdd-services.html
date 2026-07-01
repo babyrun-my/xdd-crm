@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小叮当服务项目</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #0F1F3D; min-height: 100vh; color: #fff; }
+
+  /* ── Login Screen ── */
+  #login-screen {
+    position: fixed; inset: 0; background: #0F1F3D;
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+  }
+  .login-box {
+    background: #1A2E52; border-radius: 20px; padding: 40px 36px;
+    width: 340px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); text-align: center;
+  }
+  .login-logo { font-size: 52px; margin-bottom: 12px; }
+  .login-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .login-sub { font-size: 13px; color: #8BA3C7; margin-bottom: 28px; }
+  .login-label { font-size: 12px; color: #8BA3C7; text-align: left; margin-bottom: 6px; }
+  .login-input {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 1.5px solid #2A4070; background: #0F1F3D;
+    color: #fff; font-size: 15px; outline: none; margin-bottom: 8px;
+  }
+  .login-input:focus { border-color: #3B82F6; }
+  .login-err { color: #EF4444; font-size: 12px; margin-bottom: 10px; min-height: 18px; }
+  .login-btn {
+    width: 100%; padding: 13px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+    color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: opacity .2s;
+  }
+  .login-btn:hover { opacity: .88; }
+
+  /* ── Main App ── */
+  #app { display: none; }
+  .top-bar {
+    background: #1A2E52; padding: 16px 24px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .top-logo { font-size: 28px; }
+  .top-title { font-size: 17px; font-weight: 700; color: #fff; }
+  .top-badge {
+    font-size: 11px; background: #3B82F6; color: #fff;
+    padding: 3px 10px; border-radius: 20px; font-weight: 600;
+  }
+  .top-right { margin-left: auto; font-size: 12px; color: #8BA3C7; }
+
+  .main { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+  .section-title {
+    font-size: 15px; font-weight: 700; color: #8BA3C7;
+    margin-bottom: 16px; letter-spacing: 1px; text-transform: uppercase;
+  }
+
+  .proj-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px; margin-bottom: 32px;
+  }
+  .proj-card {
+    background: #1A2E52; border-radius: 14px; padding: 18px 20px;
+    border: 1px solid #2A4070; transition: transform .15s, border-color .15s;
+  }
+  .proj-card:hover { transform: translateY(-2px); border-color: #3B82F6; }
+  .proj-name { font-size: 14px; font-weight: 600; color: #E8F0FE; margin-bottom: 10px; line-height: 1.4; }
+  .proj-cost {
+    font-size: 16px; font-weight: 700;
+    color: #60A5FA;
+  }
+  .proj-cost.rmb { color: #F59E0B; }
+  .proj-cost .cur-badge {
+    font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px;
+    background: rgba(96,165,250,0.15); color: #60A5FA; margin-right: 5px;
+  }
+  .proj-cost.rmb .cur-badge { background: rgba(245,158,11,0.15); color: #F59E0B; }
+
+  .footer-note {
+    text-align: center; color: #4B6080; font-size: 12px; margin-top: 32px;
+    padding-top: 20px; border-top: 1px solid #1E3A6B;
+  }
+
+  /* search */
+  .search-wrap { margin-bottom: 20px; }
+  .search-input {
+    width: 100%; max-width: 340px; padding: 10px 16px;
+    background: #1A2E52; border: 1.5px solid #2A4070; border-radius: 10px;
+    color: #fff; font-size: 14px; outline: none;
+  }
+  .search-input:focus { border-color: #3B82F6; }
+  .search-input::placeholder { color: #4B6080; }
+  .count-note { font-size: 12px; color: #8BA3C7; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">🔔</div>
+    <div class="login-title">小叮当服务项目</div>
+    <div class="login-sub">请输入密码查看服务清单</div>
+    <div class="login-label">🔒 访问密码</div>
+    <input class="login-input" type="password" id="pw-input" placeholder="输入密码..."
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-err" id="login-err"></div>
+    <button class="login-btn" onclick="doLogin()">查看服务清单</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="top-bar">
+    <div class="top-logo">🔔</div>
+    <div class="top-title">小叮当服务项目</div>
+    <div class="top-badge">服务清单</div>
+    <div class="top-right" id="top-count">加载中...</div>
+  </div>
+  <div class="main">
+    <div class="search-wrap">
+      <input class="search-input" type="text" id="svc-search" placeholder="🔍 搜索服务项目..." oninput="filterCards()">
+      <div class="count-note" id="svc-count"></div>
+    </div>
+    <div class="section-title">可提供服务</div>
+    <div class="proj-grid" id="proj-grid">
+      <div style="color:#8BA3C7;padding:20px;">加载中...</div>
+    </div>
+    <div class="footer-note">以上为当前可提供服务项目 · 如有查询请联系我们</div>
+  </div>
+</div>
+
+<script>
+const DEMO_PW = 'Demo888';
+const SB_URL = 'https://kkxdhkqatalgxbsogyly.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGRhdGFsZ3xic29neWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk1NDYxNzAsImV4cCI6MjA2NTEyMjE3MH0.rGDPMSJF1hxGkJEbqp2TEbO9RxC7gLfGLeSs7-vQrDs';
+
+let allCards = [];
+
+function doLogin() {
+  var pw = document.getElementById('pw-input').value.trim();
+  var err = document.getElementById('login-err');
+  if (pw === DEMO_PW) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    loadServices();
+  } else {
+    err.textContent = '❌ 密码错误，请重试';
+    document.getElementById('pw-input').value = '';
+    setTimeout(function(){ err.textContent = ''; }, 2000);
+  }
+}
+
+async function loadServices() {
+  var res = await fetch(SB_URL + '/rest/v1/projects?status=eq.已启用&order=sort_order.asc,id.asc', {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+  });
+  var data = await res.json();
+  var grid = document.getElementById('proj-grid');
+  if (!data || data.length === 0) {
+    grid.innerHTML = '<div style="color:#8BA3C7;padding:20px;">暊y���服务项目</div>';
+    return;
+  }
+  allCards = data;
+  renderCards(data);
+  document.getElementById('top-count').textContent = '共 ' + data.length + ' 项服务';
+}
+
+function renderCards(items) {
+  var grid = document.getElementById('proj-grid');
+  grid.innerHTML = items.map(function(p) {
+    var cost = Number(p.cost) || 0;
+    var isRmb = cost < 0;
+    var dispVal = Math.abs(cost);
+    var cur = isRmb ? 'RMB' : 'MYR';
+    var cls = isRmb ? 'proj-cost rmb' : 'proj-cost';
+    var costHtml = dispVal > 0
+      ? '<span class="cur-badge">' + cur + '</span>' + dispVal.toLocaleString()
+      : '<span style="color:#4B6080;font-size:13px;">请询价</span>';
+    return '<div class="proj-card">' +
+      '<div class="proj-name">' + p.name + '</div>' +
+      '<div class="' + cls + '">' + costHtml + '</div>' +
+      '</div>';
+  }).join('');
+  document.getElementById('svc-count').textContent = '显示 ' + items.length + ' 项';
+}
+
+function filterCards() {
+  var kw = document.getElementById('svc-search').value.toLowerCase().trim();
+  if (!kw) { renderCards(allCards); return; }
+  var filtered = allCards.filter(function(p){ return p.name.toLowerCase().includes(kw); });
+  renderCards(filtered);
+}
+</script>
+</body>
+</html>

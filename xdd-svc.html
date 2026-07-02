@@ -177,14 +177,8 @@ async function loadServices() {
 function renderCards(items) {
   var grid = document.getElementById('proj-grid');
   grid.innerHTML = items.map(function(p) {
-    var cost = Number(p.cost) || 0;
-    var isRmb = cost < 0;
-    var dispVal = Math.abs(cost);
-    var cur = isRmb ? 'RMB' : 'MYR';
-    var cls = isRmb ? 'proj-cost rmb' : 'proj-cost';
-    var costHtml = dispVal > 0
-      ? '<span class="cur-badge">' + cur + '</span>' + dispVal.toLocaleString()
-      : '<span style="color:#4B6080;font-size:13px;">请询价</span>';
+    var cls = 'proj-cost';
+    var costHtml = '<span style="color:#4B6080;font-size:13px;">请询价</span>';
     return '<div class="proj-card">' +
       '<div class="proj-name">' + p.name + '</div>' +
       '<div class="' + cls + '">' + costHtml + '</div>' +

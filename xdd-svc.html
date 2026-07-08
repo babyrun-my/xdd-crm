@@ -206,8 +206,11 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 let allCards = [];
 
 // 首页横幅轮播（单张长方形，可点/自动切换）
+// 暂时只保留海报第1页，其余文字滑片先保留在下面的 ARCHIVED_SLIDES 里，之后要恢复直接改回 SLIDES = [...ARCHIVED_SLIDES] 即可
 const SLIDES = [
   { img: 'poster1.jpg?v=1' },
+];
+const ARCHIVED_SLIDES = [
   { tag: '🎫 热门服务', title: '多国借票服务<br><span class="accent">20-40分钟极速出票</span>',
     sub: '香港/中国/印尼/新加坡 多国借票，快速可靠，当天就能安排',
     badges: ['💰 RM180起', '⚡ 20-40分钟出票', '🌏 多国可办'],
@@ -246,6 +249,7 @@ function renderSlide() {
       '<div class="slide-badges">' + s.badges.map(function(b){ return '<span class="slide-badge">' + b + '</span>'; }).join('') + '</div>' +
     '</div>';
   }
+  dotsEl.style.display = SLIDES.length > 1 ? 'flex' : 'none';
   dotsEl.innerHTML = SLIDES.map(function(_, i){
     return '<button class="slider-dot' + (i===slideIdx?' active':'') + '" onclick="goToSlide(' + i + ')"></button>';
   }).join('');
@@ -261,7 +265,7 @@ function nextSlide() {
 }
 function resetSlideTimer() {
   if (slideTimer) clearInterval(slideTimer);
-  slideTimer = setInterval(nextSlide, 4500);
+  if (SLIDES.length > 1) slideTimer = setInterval(nextSlide, 4500);
 }
 renderSlide();
 resetSlideTimer();

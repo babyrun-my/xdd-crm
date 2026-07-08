@@ -146,6 +146,8 @@
     background: rgba(255,255,255,0.13); border: 1px solid rgba(255,255,255,0.22);
     padding: 6px 13px; border-radius: 20px;
   }
+  .slider.slide-imgmode { padding: 0; }
+  .slide-img { display: block; width: 100%; height: auto; border-radius: 20px; }
   .slider-dots { display: flex; justify-content: center; gap: 8px; padding: 14px 0 6px; }
   .slider-dot {
     width: 8px; height: 8px; border-radius: 50%; background: #2A4070;
@@ -205,10 +207,7 @@ let allCards = [];
 
 // 首页横幅轮播（单张长方形，可点/自动切换）
 const SLIDES = [
-  { tag: '🔔 小叮当服务团队群', title: '专业签证证件代办<br><span class="accent">让手续变得又快又安心</span>',
-    sub: '快至20分钟出票 · 49+服务项目 · 一站式代办服务',
-    badges: ['⚡ 最快20分钟出签', '🛡️ 专业团队跟进', '📋 49+服务项目', '💯 一对一服务'],
-    bg: 'linear-gradient(135deg,#1E3A8A,#0F1F3D)' },
+  { img: 'poster1.jpg?v=1' },
   { tag: '🎫 热门服务', title: '多国借票服务<br><span class="accent">20-40分钟极速出票</span>',
     sub: '香港/中国/印尼/新加坡 多国借票，快速可靠，当天就能安排',
     badges: ['💰 RM180起', '⚡ 20-40分钟出票', '🌏 多国可办'],
@@ -233,13 +232,20 @@ function renderSlide() {
   var slider = document.getElementById('slider');
   var dotsEl = document.getElementById('slider-dots');
   if (!slider) return;
-  slider.style.background = s.bg;
-  slider.innerHTML = '<div class="slide active">' +
-    '<div class="slide-tag"><span class="dot"></span>' + s.tag + '</div>' +
-    '<div class="slide-title">' + s.title + '</div>' +
-    '<div class="slide-sub">' + s.sub + '</div>' +
-    '<div class="slide-badges">' + s.badges.map(function(b){ return '<span class="slide-badge">' + b + '</span>'; }).join('') + '</div>' +
-  '</div>';
+  if (s.img) {
+    slider.classList.add('slide-imgmode');
+    slider.style.background = 'transparent';
+    slider.innerHTML = '<div class="slide active"><img class="slide-img" src="' + s.img + '" alt="小叮当服务团队群"></div>';
+  } else {
+    slider.classList.remove('slide-imgmode');
+    slider.style.background = s.bg;
+    slider.innerHTML = '<div class="slide active">' +
+      '<div class="slide-tag"><span class="dot"></span>' + s.tag + '</div>' +
+      '<div class="slide-title">' + s.title + '</div>' +
+      '<div class="slide-sub">' + s.sub + '</div>' +
+      '<div class="slide-badges">' + s.badges.map(function(b){ return '<span class="slide-badge">' + b + '</span>'; }).join('') + '</div>' +
+    '</div>';
+  }
   dotsEl.innerHTML = SLIDES.map(function(_, i){
     return '<button class="slider-dot' + (i===slideIdx?' active':'') + '" onclick="goToSlide(' + i + ')"></button>';
   }).join('');

@@ -64,9 +64,10 @@
   }
   .proj-card {
     background: #1A2E52; border-radius: 14px; padding: 18px 20px;
-    border: 1px solid #2A4070; transition: transform .15s, border-color .15s;
+    border: 1px solid #2A4070; transition: transform .15s, border-color .15s, box-shadow .15s;
+    position: relative; overflow: hidden;
   }
-  .proj-card:hover { transform: translateY(-2px); border-color: #3B82F6; }
+  .proj-card:hover { transform: translateY(-3px); border-color: #3B82F6; box-shadow: 0 10px 24px rgba(59,130,246,0.18); }
   .proj-name { font-size: 14px; font-weight: 600; color: #E8F0FE; margin-bottom: 10px; line-height: 1.4; }
   .proj-cost {
     font-size: 16px; font-weight: 700;
@@ -78,6 +79,29 @@
     background: rgba(96,165,250,0.15); color: #60A5FA; margin-right: 5px;
   }
   .proj-cost.rmb .cur-badge { background: rgba(245,158,11,0.15); color: #F59E0B; }
+
+  /* ── Price info (persuasive) ── */
+  .proj-price-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .proj-price-num { font-size: 22px; font-weight: 800; color: #FBBF24; letter-spacing: -0.3px; }
+  .proj-price-cur { font-size: 12px; font-weight: 700; color: #FBBF24; opacity: .85; }
+  .proj-price-tiers { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+  .proj-price-tiers .tier-row { display: flex; justify-content: space-between; font-size: 12px; color: #C7D6EE; }
+  .proj-price-tiers .tier-row b { color: #FBBF24; font-weight: 700; }
+  .proj-badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .proj-fast-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 700; color: #34D399;
+    background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.35);
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .proj-hot-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 700; color: #FB7185;
+    background: rgba(251,113,133,0.12); border: 1px solid rgba(251,113,133,0.35);
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .proj-note { font-size: 11.5px; color: #8BA3C7; line-height: 1.5; }
+  .proj-inquire { font-size: 12px; color: #4B6080; }
 
   .footer-note {
     text-align: center; color: #4B6080; font-size: 12px; margin-top: 32px;
@@ -140,6 +164,70 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 let allCards = [];
 
+// 参考价格资料（客服页展示用，跟内部本钱数据无关）
+const PRICE_INFO = {
+  "马来西亚-香港 借票": [{p:"180", c:"RMB", n:"20-40分钟出票"}],
+  "马来西亚-印尼 借票": [{p:"110", c:"RMB", n:"20-40分钟出票"}],
+  "马来西亚-中国 借票": [{p:"250", c:"RMB", n:"20-40分钟出票"}],
+  "新加坡-香港 借票": [{p:"180", c:"RMB", n:"20-40分钟出票"}],
+  "新加坡-北京 借票": [{p:"250", c:"RMB", n:"20-40分钟出票"}],
+  "马来西亚EVISA（人在中国)": [{p:"360", c:"RMB", n:"1-3天工作日"}],
+  "马来西亚EVISA（人在第三国)": [{p:"1100", c:"RMB", n:"1-3天工作日"}],
+  "马来西亚EVISA（人在马来西亚)": [{p:"1800", c:"RMB", n:"1-3天工作日"}],
+  "马来西亚EVISA（外国护照)": [{p:"1000", c:"RMB", n:"1-3天工作日"}],
+  "西马一年PVP（排队预定名额）": [{p:"15500", c:"MYR", n:"人在境外等两个月"}],
+  "西马学生证两年（1年+1年)": [{p:"30000", c:"MYR", n:"3周-6周，需跟流程"}],
+  "第二家园 SECOND HOME": [
+    {p:"40000", c:"MYR", n:"SEZ / Silver 服务费"},
+    {p:"55000", c:"MYR", n:"GOLD 服务费"},
+    {p:"70000", c:"MYR", n:"PLATINUM 服务费"}
+  ],
+  "PVIP 20年 富豪证": [{p:"300000", c:"MYR", n:"资料不健全2个月内，代补资料"}],
+  "东马半年续签（6个月）": [{p:"7500", c:"MYR", n:"提早三个月申请"}],
+  "东马一年续签（1年）": [{p:"13000", c:"MYR", n:"提早三个月申请"}],
+  "东马半年专业人士证（人要飞东马贴纸）": [{p:"7500", c:"MYR", n:"4周-6周，跟着大环境出签"}],
+  "东马一年工作签EP（人要飞东马贴纸）": [{p:"13000", c:"MYR", n:"4周-6周，跟着大环境出签"}],
+  "东马半年专业人士证（不飞东马贴纸）": [{p:"12200", c:"MYR", n:"3个月-4个月"}],
+  "东马一年工作签EP（不飞东马贴纸）": [{p:"17700", c:"MYR", n:"3个月-4个月"}],
+  "PTKS 面签罚款延期*14天*有效期（一本一次）": [{p:"1000", c:"MYR", n:"罚款另外，当天好"}],
+  "PTKS 人不去罚款延期*30天*有效期（一本一次）": [{p:"1500", c:"MYR", n:"罚款另外，2-3天工作日"}],
+  "C 未逾期人不去 SP1 *30天*有效期": [{p:"2500", c:"MYR", n:"可续两次，到期前7天收本"}],
+  "C 未逾期人不去 SP2 *30天*有效期": [{p:"2500", c:"MYR", n:"可续签，到期前7天收本"}],
+  "无盖章激活（电子签刷签）*30天*有效期": [{p:"1200", c:"MYR", n:"到期一天后提交，3-7天"}],
+  "🚗刷签人去（当天好）*30天*有效期": [{p:"1400", c:"MYR", n:"到期前5天通知，当天好"}],
+  "🚗盖章(3天-5天）*30天*有效期": [{p:"1500", c:"MYR", n:"卡系统+1000马币"}],
+  "🚗盖章 (7天-10天）*30天*有效期": [{p:"1300", c:"MYR", n:"排单顺序进，提早30天安排"}],
+  "🚗刷签双系统（一出一进）30天": [{p:"1800", c:"MYR", n:"到期前5天交付护照"}],
+  "✈️盖章(7-10天) L1 *30天*有效期": [{p:"2500", c:"MYR", n:"小国另外算"}],
+  "✈️盖章(7-10天) W1 *30天*有效期": [{p:"2500", c:"MYR", n:"小国另外算"}],
+  "柜台服务 L1": [{p:"800-3500", c:"MYR", n:"小国、黑名单另外算"}],
+  "柜台服务 W1": [{p:"800-2000", c:"MYR", n:"小国、黑名单另外算"}],
+  "柜台服务 T1": [{p:"800-8000", c:"MYR", n:"小国、黑名单另外算"}],
+  "人不去延期 L1": [{p:"1300", c:"MYR", n:"越南/泰国/缅甸/菲律宾/老挝"}],
+  "人在马来西亚中国人 代办新护照/旅行证": [{p:"800", c:"MYR", n:"有征信问题不收，代处理报案纸"}],
+  "人在马来西亚越南人🇻🇳 代办新护照/换护照": [{p:"1900", c:"MYR", n:"新护照30天，换护照1-7天内"}],
+  "西马一年女佣证 H1": [{p:"9500", c:"MYR", n:"不包雇主，+4000包雇主，3-4周"}],
+  "西马一年女佣证 L1": [{p:"10000", c:"MYR", n:"不包雇主，+4000包雇主"}],
+  "APEC卡 5年（马来西人）": [{p:"3800", c:"MYR", n:"3-7天，没有公司资料+1000"}],
+  "马来西亚EVISA-巴基斯坦护照": [{p:"1300", c:"MYR", n:"1-3天出"}],
+  "OUT 出境记录📝": [{p:"1000", c:"MYR", n:"有系统"}],
+  "IN 入境记录📝": [{p:"1300", c:"MYR", n:"有系统"}],
+  "一年工作签开银行服务": [{p:"3000", c:"MYR", n:"新山、吉隆坡"}],
+  "VIP快速通道（马来西亚KLIA,KLIA2）": [{p:"350", c:"MYR", n:"提前3天预定"}],
+  "西马-半年老人签（60岁以上)": [{p:"10000", c:"MYR", n:"7-10天，可续签"}],
+  "西马续签4年中国结婚证": [{p:"10000", c:"MYR", n:"2-7天，需拿证满一年"}],
+  "马来西亚考驾校服务": [{p:"4800", c:"MYR", n:"需持一年签证，半年有效期以上"}],
+  "美里进柜台": [{p:"1500", c:"MYR", n:"预定5天前"}],
+  "查出入境/黑名单": [{p:"300", c:"MYR", n:"查出入境、查黑名单、查工作签真伪"}]
+};
+const HOT_NAMES = ["马来西亚-香港 借票","马来西亚-印尼 借票","马来西亚-中国 借票","新加坡-香港 借票","新加坡-北京 借票","马来西亚EVISA（人在中国)","马来西亚EVISA（人在马来西亚)"];
+
+function normName(s) {
+  return String(s || '').replace(/[\s（）()【】\[\]*]/g, '');
+}
+const PRICE_LOOKUP = {};
+Object.keys(PRICE_INFO).forEach(function(k){ PRICE_LOOKUP[normName(k)] = PRICE_INFO[k]; });
+
 function doLogin() {
   var pw = document.getElementById('pw-input').value.trim();
   var err = document.getElementById('login-err');
@@ -177,11 +265,34 @@ async function loadServices() {
 function renderCards(items) {
   var grid = document.getElementById('proj-grid');
   grid.innerHTML = items.map(function(p) {
-    var cls = 'proj-cost';
-    var costHtml = '<span style="color:#4B6080;font-size:13px;">请询价</span>';
+    var info = PRICE_LOOKUP[normName(p.name)];
+    var isHot = HOT_NAMES.indexOf(p.name) !== -1;
+    var badges = '';
+    var priceHtml;
+
+    if (info && info.length > 1) {
+      // 多档价格（比如第二家园）
+      priceHtml = '<div class="proj-price-tiers">' + info.map(function(t){
+        return '<div class="tier-row"><span>' + t.n + '</span><b>' + t.c + ' ' + t.p + '</b></div>';
+      }).join('') + '</div>';
+    } else if (info && info.length === 1) {
+      var t = info[0];
+      var isFast = /分钟|当天/.test(t.n);
+      priceHtml = '<div class="proj-price-row"><span class="proj-price-num">' + t.c + ' ' + t.p + '</span></div>';
+      if (isFast) {
+        badges += '<span class="proj-fast-badge">⚡ ' + t.n + '</span>';
+      } else {
+        priceHtml += '<div class="proj-note">' + t.n + '</div>';
+      }
+    } else {
+      priceHtml = '<div class="proj-price-row"><span style="color:#4B6080;font-size:13px;">请询价</span></div>';
+    }
+    if (isHot) badges += '<span class="proj-hot-badge">🔥 热门</span>';
+
     return '<div class="proj-card">' +
+      (badges ? '<div class="proj-badge-row">' + badges + '</div>' : '') +
       '<div class="proj-name">' + p.name + '</div>' +
-      '<div class="' + cls + '">' + costHtml + '</div>' +
+      priceHtml +
       '</div>';
   }).join('');
   document.getElementById('svc-count').textContent = '显示 ' + items.length + ' 项';

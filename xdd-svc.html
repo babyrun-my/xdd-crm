@@ -119,54 +119,39 @@
   .search-input::placeholder { color: #4B6080; }
   .count-note { font-size: 12px; color: #8BA3C7; margin-top: 8px; }
 
-  /* ── Hero banner ── */
-  .hero {
-    text-align: center; padding: 52px 20px 36px; position: relative; overflow: hidden;
-    background:
-      radial-gradient(ellipse 60% 50% at 30% 0%, rgba(245,158,11,0.20) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 50% at 80% 100%, rgba(59,130,246,0.22) 0%, transparent 60%),
-      linear-gradient(180deg, #0B1938 0%, #0F1F3D 100%);
-    border-bottom: 1px solid #1E3A6B;
+  /* ── Hero slider (单张长方形横幅，可切换) ── */
+  .slider-wrap { padding: 22px 20px 8px; background: #0F1F3D; }
+  .slider {
+    position: relative; max-width: 900px; margin: 0 auto;
+    border-radius: 20px; overflow: hidden; min-height: 230px;
+    padding: 30px 32px 26px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.35);
   }
-  .hero-icon { font-size: 52px; margin-bottom: 12px; filter: drop-shadow(0 0 18px rgba(245,158,11,0.45)); }
-  .hero-title { font-size: 27px; font-weight: 800; color: #fff; margin-bottom: 6px; letter-spacing: .2px; line-height: 1.35; }
-  .hero-title .accent { color: #FBBF24; }
-  .hero-sub { font-size: 14.5px; color: #B9CCEC; margin-bottom: 20px; }
-  .hero-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-  .hero-tag {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.18);
-    color: #E8F0FE; font-size: 12.5px; font-weight: 700;
-    padding: 8px 15px; border-radius: 20px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+  .slide { display: none; }
+  .slide.active { display: block; animation: fadeSlide .4s ease; }
+  @keyframes fadeSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .slide-tag {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 700; color: #fff;
+    background: rgba(255,255,255,0.14); padding: 6px 13px; border-radius: 20px;
+    margin-bottom: 16px;
   }
-
-  /* ── Poster carousel (auto-scroll) ── */
-  .poster-wrap {
-    padding: 22px 0 26px; background: #101F42; border-bottom: 1px solid #1E3A6B;
-    overflow: hidden; position: relative;
+  .slide-tag .dot { width: 7px; height: 7px; border-radius: 50%; background: #F87171; display: inline-block; }
+  .slide-title { font-size: 24px; font-weight: 800; color: #fff; line-height: 1.4; margin-bottom: 10px; }
+  .slide-title .accent { color: #FDE047; }
+  .slide-sub { font-size: 13.5px; color: rgba(255,255,255,0.82); line-height: 1.6; margin-bottom: 18px; max-width: 520px; }
+  .slide-badges { display: flex; flex-wrap: wrap; gap: 9px; }
+  .slide-badge {
+    font-size: 12px; font-weight: 700; color: #fff;
+    background: rgba(255,255,255,0.13); border: 1px solid rgba(255,255,255,0.22);
+    padding: 6px 13px; border-radius: 20px;
   }
-  .poster-wrap::before, .poster-wrap::after {
-    content: ''; position: absolute; top: 0; bottom: 0; width: 60px; z-index: 2; pointer-events: none;
+  .slider-dots { display: flex; justify-content: center; gap: 8px; padding: 14px 0 6px; }
+  .slider-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #2A4070;
+    cursor: pointer; transition: all .2s; border: none; padding: 0;
   }
-  .poster-wrap::before { left: 0; background: linear-gradient(90deg, #101F42, transparent); }
-  .poster-wrap::after { right: 0; background: linear-gradient(-90deg, #101F42, transparent); }
-  .poster-track {
-    display: flex; gap: 16px; width: max-content;
-    animation: posterScroll 32s linear infinite;
-  }
-  .poster-wrap:hover .poster-track { animation-play-state: paused; }
-  @keyframes posterScroll {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
-  }
-  .poster-card {
-    width: 200px; flex-shrink: 0; border-radius: 16px; padding: 18px 16px;
-    color: #fff; position: relative; overflow: hidden;
-  }
-  .poster-card .p-icon { font-size: 26px; margin-bottom: 10px; }
-  .poster-card .p-title { font-size: 14.5px; font-weight: 800; margin-bottom: 5px; line-height: 1.3; }
-  .poster-card .p-sub { font-size: 11.5px; opacity: .9; line-height: 1.4; }
+  .slider-dot.active { background: #FBBF24; width: 22px; border-radius: 6px; }
 </style>
 </head>
 <body>
@@ -193,20 +178,9 @@
     <div class="top-badge">服务清单</div>
     <div class="top-right" id="top-count">加载中...</div>
   </div>
-  <div class="hero">
-    <div class="hero-icon">🔔</div>
-    <div class="hero-title">小叮当服务团队群<br><span class="accent">专业签证证件代办</span></div>
-    <div class="hero-sub">快至20分钟出票 · 49+服务项目 · 一站式代办服务</div>
-    <div class="hero-tags">
-      <span class="hero-tag">⚡ 最快20分钟出签</span>
-      <span class="hero-tag">🛡️ 专业团队跟进</span>
-      <span class="hero-tag">📋 49+服务项目</span>
-      <span class="hero-tag">💯 一对一服务</span>
-    </div>
-  </div>
-
-  <div class="poster-wrap">
-    <div class="poster-track" id="poster-track"></div>
+  <div class="slider-wrap">
+    <div class="slider" id="slider"></div>
+    <div class="slider-dots" id="slider-dots"></div>
   </div>
 
   <div class="main">
@@ -229,28 +203,67 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 let allCards = [];
 
-// 海报轮播卡片（纯文字+颜色设计，自动横向滚动）
-const POSTERS = [
-  { icon: '🎫', title: '多国借票服务', sub: '香港/中国/印尼 · 20-40分钟出票', bg: 'linear-gradient(135deg,#2563EB,#1E40AF)' },
-  { icon: '💳', title: 'EVISA电子签', sub: '最快1天出签 · 中国/第三国/本地皆可办', bg: 'linear-gradient(135deg,#7C3AED,#5B21B6)' },
-  { icon: '🧳', title: '东马工作签EP', sub: '半年/一年 · 专业人士证同步办理', bg: 'linear-gradient(135deg,#059669,#065F46)' },
-  { icon: '🛂', title: '落地保关服务', sub: 'K1/K2全程陪同 · 出入境无忧', bg: 'linear-gradient(135deg,#DC2626,#991B1B)' },
-  { icon: '👩‍💼', title: '女佣证代办', sub: '西马一年 · 含/不含雇主皆可办', bg: 'linear-gradient(135deg,#EA580C,#9A3412)' },
-  { icon: '✈️', title: 'VIP机场快速通道', sub: 'KLIA / KLIA2 · 提前3天预定', bg: 'linear-gradient(135deg,#CA8A04,#854D0E)' },
+// 首页横幅轮播（单张长方形，可点/自动切换）
+const SLIDES = [
+  { tag: '🔔 小叮当服务团队群', title: '专业签证证件代办<br><span class="accent">让手续变得又快又安心</span>',
+    sub: '快至20分钟出票 · 49+服务项目 · 一站式代办服务',
+    badges: ['⚡ 最快20分钟出签', '🛡️ 专业团队跟进', '📋 49+服务项目', '💯 一对一服务'],
+    bg: 'linear-gradient(135deg,#1E3A8A,#0F1F3D)' },
+  { tag: '🎫 热门服务', title: '多国借票服务<br><span class="accent">20-40分钟极速出票</span>',
+    sub: '香港/中国/印尼/新加坡 多国借票，快速可靠，当天就能安排',
+    badges: ['💰 RM180起', '⚡ 20-40分钟出票', '🌏 多国可办'],
+    bg: 'linear-gradient(135deg,#2563EB,#1E3A8A)' },
+  { tag: '💳 快速办理', title: '马来西亚EVISA<br><span class="accent">最快1天出签</span>',
+    sub: '中国护照 / 第三国 / 本地皆可办理，手续简单，全程代办',
+    badges: ['⚡ 1-3天工作日', '📄 手续简便', '🌐 支持多国护照'],
+    bg: 'linear-gradient(135deg,#7C3AED,#4C1D95)' },
+  { tag: '🧳 长期签证', title: '东马工作签证 EP<br><span class="accent">半年 / 一年皆可办</span>',
+    sub: '专业人士证同步办理，团队全程协助，跟进到签证下发',
+    badges: ['📆 半年/一年', '🤝 专业团队协助'],
+    bg: 'linear-gradient(135deg,#059669,#064E3B)' },
+  { tag: '✈️ 尊享服务', title: 'VIP机场快速通道<br><span class="accent">省时更省心</span>',
+    sub: 'KLIA / KLIA2 机场贵宾礼遇，提前预定，专人陪同通关',
+    badges: ['⏱️ 提前3天预定', '🛎️ 专人陪同'],
+    bg: 'linear-gradient(135deg,#CA8A04,#78350F)' },
 ];
-function renderPosters() {
-  var track = document.getElementById('poster-track');
-  if (!track) return;
-  var cardsHtml = POSTERS.map(function(p){
-    return '<div class="poster-card" style="background:' + p.bg + '">' +
-      '<div class="p-icon">' + p.icon + '</div>' +
-      '<div class="p-title">' + p.title + '</div>' +
-      '<div class="p-sub">' + p.sub + '</div>' +
-    '</div>';
+let slideIdx = 0, slideTimer = null;
+
+function renderSlide() {
+  var s = SLIDES[slideIdx];
+  var slider = document.getElementById('slider');
+  var dotsEl = document.getElementById('slider-dots');
+  if (!slider) return;
+  slider.style.background = s.bg;
+  slider.innerHTML = '<div class="slide active">' +
+    '<div class="slide-tag"><span class="dot"></span>' + s.tag + '</div>' +
+    '<div class="slide-title">' + s.title + '</div>' +
+    '<div class="slide-sub">' + s.sub + '</div>' +
+    '<div class="slide-badges">' + s.badges.map(function(b){ return '<span class="slide-badge">' + b + '</span>'; }).join('') + '</div>' +
+  '</div>';
+  dotsEl.innerHTML = SLIDES.map(function(_, i){
+    return '<button class="slider-dot' + (i===slideIdx?' active':'') + '" onclick="goToSlide(' + i + ')"></button>';
   }).join('');
-  track.innerHTML = cardsHtml + cardsHtml; // 复制一份做无缝循环
 }
-renderPosters();
+function goToSlide(i) {
+  slideIdx = i;
+  renderSlide();
+  resetSlideTimer();
+}
+function nextSlide() {
+  slideIdx = (slideIdx + 1) % SLIDES.length;
+  renderSlide();
+}
+function resetSlideTimer() {
+  if (slideTimer) clearInterval(slideTimer);
+  slideTimer = setInterval(nextSlide, 4500);
+}
+renderSlide();
+resetSlideTimer();
+var sliderEl = document.getElementById('slider');
+if (sliderEl) {
+  sliderEl.addEventListener('mouseenter', function(){ if (slideTimer) clearInterval(slideTimer); });
+  sliderEl.addEventListener('mouseleave', resetSlideTimer);
+}
 
 // 参考价格资料（客服页展示用，跟内部本钱数据无关）
 const PRICE_INFO = {

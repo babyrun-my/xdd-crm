@@ -121,20 +121,52 @@
 
   /* ── Hero banner ── */
   .hero {
-    text-align: center; padding: 40px 20px 32px;
-    background: radial-gradient(ellipse at top, rgba(59,130,246,0.16) 0%, transparent 60%);
+    text-align: center; padding: 52px 20px 36px; position: relative; overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 50% at 30% 0%, rgba(245,158,11,0.20) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 100%, rgba(59,130,246,0.22) 0%, transparent 60%),
+      linear-gradient(180deg, #0B1938 0%, #0F1F3D 100%);
     border-bottom: 1px solid #1E3A6B;
   }
-  .hero-icon { font-size: 46px; margin-bottom: 10px; }
-  .hero-title { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 8px; letter-spacing: .3px; }
-  .hero-sub { font-size: 14px; color: #A9C0E6; margin-bottom: 18px; }
+  .hero-icon { font-size: 52px; margin-bottom: 12px; filter: drop-shadow(0 0 18px rgba(245,158,11,0.45)); }
+  .hero-title { font-size: 27px; font-weight: 800; color: #fff; margin-bottom: 6px; letter-spacing: .2px; line-height: 1.35; }
+  .hero-title .accent { color: #FBBF24; }
+  .hero-sub { font-size: 14.5px; color: #B9CCEC; margin-bottom: 20px; }
   .hero-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
   .hero-tag {
     display: inline-flex; align-items: center; gap: 6px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
-    color: #E8F0FE; font-size: 12.5px; font-weight: 600;
-    padding: 7px 14px; border-radius: 20px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.18);
+    color: #E8F0FE; font-size: 12.5px; font-weight: 700;
+    padding: 8px 15px; border-radius: 20px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
   }
+
+  /* ── Poster carousel (auto-scroll) ── */
+  .poster-wrap {
+    padding: 22px 0 26px; background: #101F42; border-bottom: 1px solid #1E3A6B;
+    overflow: hidden; position: relative;
+  }
+  .poster-wrap::before, .poster-wrap::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 60px; z-index: 2; pointer-events: none;
+  }
+  .poster-wrap::before { left: 0; background: linear-gradient(90deg, #101F42, transparent); }
+  .poster-wrap::after { right: 0; background: linear-gradient(-90deg, #101F42, transparent); }
+  .poster-track {
+    display: flex; gap: 16px; width: max-content;
+    animation: posterScroll 32s linear infinite;
+  }
+  .poster-wrap:hover .poster-track { animation-play-state: paused; }
+  @keyframes posterScroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .poster-card {
+    width: 200px; flex-shrink: 0; border-radius: 16px; padding: 18px 16px;
+    color: #fff; position: relative; overflow: hidden;
+  }
+  .poster-card .p-icon { font-size: 26px; margin-bottom: 10px; }
+  .poster-card .p-title { font-size: 14.5px; font-weight: 800; margin-bottom: 5px; line-height: 1.3; }
+  .poster-card .p-sub { font-size: 11.5px; opacity: .9; line-height: 1.4; }
 </style>
 </head>
 <body>
@@ -163,7 +195,7 @@
   </div>
   <div class="hero">
     <div class="hero-icon">🔔</div>
-    <div class="hero-title">小叮当服务团队群 · 专业签证证件代办</div>
+    <div class="hero-title">小叮当服务团队群<br><span class="accent">专业签证证件代办</span></div>
     <div class="hero-sub">快至20分钟出票 · 49+服务项目 · 一站式代办服务</div>
     <div class="hero-tags">
       <span class="hero-tag">⚡ 最快20分钟出签</span>
@@ -172,6 +204,11 @@
       <span class="hero-tag">💯 一对一服务</span>
     </div>
   </div>
+
+  <div class="poster-wrap">
+    <div class="poster-track" id="poster-track"></div>
+  </div>
+
   <div class="main">
     <div class="search-wrap">
       <input class="search-input" type="text" id="svc-search" placeholder="🔍 搜索服务项目..." oninput="filterCards()">
@@ -191,6 +228,29 @@ const SB_URL = 'https://kkxdhkqatalgxbsogyly.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGRoa3FhdGFsZ3hic29neWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDQ4NTksImV4cCI6MjA5ODI4MDg1OX0.ewte2esrv1cOFQ5GngSA7dZqJkHCyiCcUXErxKxlClk';
 
 let allCards = [];
+
+// 海报轮播卡片（纯文字+颜色设计，自动横向滚动）
+const POSTERS = [
+  { icon: '🎫', title: '多国借票服务', sub: '香港/中国/印尼 · 20-40分钟出票', bg: 'linear-gradient(135deg,#2563EB,#1E40AF)' },
+  { icon: '💳', title: 'EVISA电子签', sub: '最快1天出签 · 中国/第三国/本地皆可办', bg: 'linear-gradient(135deg,#7C3AED,#5B21B6)' },
+  { icon: '🧳', title: '东马工作签EP', sub: '半年/一年 · 专业人士证同步办理', bg: 'linear-gradient(135deg,#059669,#065F46)' },
+  { icon: '🛂', title: '落地保关服务', sub: 'K1/K2全程陪同 · 出入境无忧', bg: 'linear-gradient(135deg,#DC2626,#991B1B)' },
+  { icon: '👩‍💼', title: '女佣证代办', sub: '西马一年 · 含/不含雇主皆可办', bg: 'linear-gradient(135deg,#EA580C,#9A3412)' },
+  { icon: '✈️', title: 'VIP机场快速通道', sub: 'KLIA / KLIA2 · 提前3天预定', bg: 'linear-gradient(135deg,#CA8A04,#854D0E)' },
+];
+function renderPosters() {
+  var track = document.getElementById('poster-track');
+  if (!track) return;
+  var cardsHtml = POSTERS.map(function(p){
+    return '<div class="poster-card" style="background:' + p.bg + '">' +
+      '<div class="p-icon">' + p.icon + '</div>' +
+      '<div class="p-title">' + p.title + '</div>' +
+      '<div class="p-sub">' + p.sub + '</div>' +
+    '</div>';
+  }).join('');
+  track.innerHTML = cardsHtml + cardsHtml; // 复制一份做无缝循环
+}
+renderPosters();
 
 // 参考价格资料（客服页展示用，跟内部本钱数据无关）
 const PRICE_INFO = {

@@ -306,12 +306,28 @@ const SB_URL = 'https://kkxdhkqatalgxbsogyly.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGRoa3FhdGFsZ3hic29neWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDQ4NTksImV4cCI6MjA5ODI4MDg1OX0.ewte2esrv1cOFQ5GngSA7dZqJkHCyiCcUXErxKxlClk';
 const SB_H = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
 
+async function loadProjectOptions() {
+  var sel = document.getElementById('f-project');
+  if (!sel) return;
+  var keepVal = sel.value;
+  try {
+    var r = await fetch(SB_URL + '/rest/v1/projects?select=name&status=eq.已启用&order=sort_order.asc,id.asc', { headers: SB_H });
+    var data = await r.json();
+    if (Array.isArray(data) && data.length > 0) {
+      sel.innerHTML = '<option value="">请选择项目内容</option>' +
+        data.map(function(p){ return '<option>' + p.name + '</option>'; }).join('');
+      sel.value = keepVal;
+    }
+  } catch(e) { /* keep existing options if fetch fails */ }
+}
+
 function doLogin() {
   var pw = document.getElementById('pw-input').value.trim();
   var err = document.getElementById('login-err');
   if (pw === AGENT_PW) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
+    loadProjectOptions();
   } else {
     err.textContent = '❌ 密码错误，请重试';
     document.getElementById('pw-input').value = '';

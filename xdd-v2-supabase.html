@@ -214,6 +214,24 @@
     border-radius: 8px; font-size: 13px; color: var(--text);
     background: white; cursor: pointer; outline: none;
   }
+  .colvis-wrap { position: relative; }
+  .btn-colvis {
+    background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .colvis-panel {
+    display: none; position: absolute; top: 42px; right: 0; z-index: 20;
+    background: white; border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; width: 300px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); box-sizing: border-box;
+  }
+  .colvis-panel.open { display: block; }
+  .colvis-title { font-size: 12px; font-weight: 600; color: var(--text-light); margin-bottom: 10px; }
+  .colvis-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; max-height: 260px; overflow-y: auto; }
+  .colvis-checks label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); cursor: pointer; }
+  .colvis-reset {
+    margin-top: 12px; width: 100%; background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--text-light); cursor: pointer;
+  }
   .btn-primary {
     background: var(--accent); color: white;
     padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
@@ -881,6 +899,14 @@
         <button class="btn-primary" onclick="showPage('addcustomer',null)">➕ 新增客户</button>
         <button class="btn-secondary" onclick="downloadCSV()" style="background:#0891b2;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">⬇ CSV</button>
         <button class="btn-secondary" onclick="downloadExcel()" style="background:#059669;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;">⬇ Excel</button>
+        <div class="colvis-wrap">
+          <button class="btn-colvis" onclick="toggleColVisPanel()">🔧 显示列</button>
+          <div class="colvis-panel" id="colvis-panel">
+            <div class="colvis-title">选择要显示的栏位（姓名/护照号固定显示）</div>
+            <div class="colvis-checks" id="colvis-checks"></div>
+            <button class="colvis-reset" onclick="resetColVis()">全部恢复显示</button>
+          </div>
+        </div>
       </div>
 
       <!-- Table -->
@@ -1642,6 +1668,90 @@ function updateProgressColor(sel) {
   sel.classList.toggle('is-urgent', sel.value === '待递交');
   sel.classList.toggle('is-complete', sel.value === '已完成');
 }
+
+// Column visibility (显示列)
+var COLVIS_COLS = [
+  {idx:4,  key:'followup', label:'跟进人'},
+  {idx:5,  key:'project',  label:'项目内容'},
+  {idx:6,  key:'agent',    label:'代理名字'},
+  {idx:7,  key:'date',     label:'提交日期'},
+  {idx:8,  key:'passto',   label:'Pass To'},
+  {idx:9,  key:'extrafee', label:'Extra Fee'},
+  {idx:10, key:'deposit',  label:'押金'},
+  {idx:11, key:'due',      label:'待付款'},
+  {idx:12, key:'costtype', label:'Cost Type'},
+  {idx:13, key:'price',    label:'卖价'},
+  {idx:14, key:'cost',     label:'本钱'},
+  {idx:15, key:'share',    label:'分成利润'},
+  {idx:16, key:'profit',   label:'利润'},
+  {idx:17, key:'note',     label:'备注'},
+  {idx:18, key:'pay',      label:'支付方式'},
+  {idx:19, key:'visa',     label:'签证有效期'},
+  {idx:20, key:'valid',    label:'VALID'},
+  {idx:21, key:'progress', label:'当前进度'},
+  {idx:22, key:'status',   label:'状态'},
+  {idx:23, key:'urgent',   label:'紧急'},
+  {idx:24, key:'delcol',   label:'删除'}
+];
+var COLVIS_STORAGE_KEY = 'xdd_hidden_cols';
+function getHiddenCols() {
+  try { return JSON.parse(localStorage.getItem(COLVIS_STORAGE_KEY) || '[]'); } catch(e) { return []; }
+}
+function setHiddenCols(arr) { localStorage.setItem(COLVIS_STORAGE_KEY, JSON.stringify(arr)); }
+function applyColVis() {
+  var hidden = getHiddenCols();
+  var css = hidden.map(function(key){
+    var col = COLVIS_COLS.filter(function(c){ return c.key === key; })[0];
+    if (!col) return '';
+    return '#cust-table-wrap th:nth-child(' + col.idx + '), #cust-table-wrap td:nth-child(' + col.idx + ') { display:none; }';
+  }).join('\n');
+  var styleEl = document.getElementById('colvis-style');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'colvis-style';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = css;
+}
+function renderColVisChecks() {
+  var hidden = getHiddenCols();
+  var box = document.getElementById('colvis-checks');
+  if (!box) return;
+  box.innerHTML = COLVIS_COLS.map(function(c){
+    var checked = hidden.indexOf(c.key) === -1 ? 'checked' : '';
+    return '<label><input type="checkbox" data-key="' + c.key + '" ' + checked + ' onchange="toggleColVisCol(this)">' + c.label + '</label>';
+  }).join('');
+}
+function toggleColVisCol(cb) {
+  var hidden = getHiddenCols();
+  var key = cb.dataset.key;
+  if (cb.checked) {
+    hidden = hidden.filter(function(k){ return k !== key; });
+  } else {
+    if (hidden.indexOf(key) === -1) hidden.push(key);
+  }
+  setHiddenCols(hidden);
+  applyColVis();
+}
+function toggleColVisPanel() {
+  var panel = document.getElementById('colvis-panel');
+  if (panel) panel.classList.toggle('open');
+}
+function resetColVis() {
+  setHiddenCols([]);
+  applyColVis();
+  renderColVisChecks();
+}
+document.addEventListener('click', function(e) {
+  var wrap = document.querySelector('.colvis-wrap');
+  var panel = document.getElementById('colvis-panel');
+  if (wrap && panel && panel.classList.contains('open') && !wrap.contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+applyColVis();
+renderColVisChecks();
+
 syncAddProjDropdown();
 
   document.querySelectorAll('.status-sel').forEach(sel => {

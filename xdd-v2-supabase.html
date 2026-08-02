@@ -189,6 +189,7 @@
   .proj-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
   .proj-month-num { font-size: 11px; color: var(--text-light); }
   .proj-month-myr { font-size: 11px; color: var(--accent); font-weight: 600; }
+  .proj-month-rmb { font-size: 11px; color: #F59E0B; font-weight: 600; }
 
   /* ── FILTER BAR ── */
   .filter-bar {
@@ -3135,9 +3136,9 @@ function syncDashboard() {
         else { monthRevenueRM += sell; monthProfitRM += profit; }
         monthNew++;
         if (projName) {
-          if (!projMap[projName]) projMap[projName] = {count:0, amount:0};
+          if (!projMap[projName]) projMap[projName] = {count:0, amountRM:0, amountRMB:0};
           projMap[projName].count++;
-          projMap[projName].amount += sell;
+          if (costType === 'RMB') projMap[projName].amountRMB += sell; else projMap[projName].amountRM += sell;
         }
       }
     }
@@ -3225,7 +3226,10 @@ function syncDashboard() {
   if (grid && Object.keys(projMap).length > 0) {
     grid.innerHTML = Object.keys(projMap).map(function(name) {
       var d = projMap[name];
-      return '<div class="proj-card"><span class="proj-icon">📋</span><div><div class="proj-name">' + name + '</div><div class="proj-month-num">本月 ' + d.count + ' 单</div><div class="proj-month-myr">MYR ' + d.amount.toLocaleString() + '</div></div></div>';
+      var amtHtml = '';
+      if (d.amountRM > 0) amtHtml += '<div class="proj-month-myr">MYR ' + d.amountRM.toLocaleString() + '</div>';
+      if (d.amountRMB > 0) amtHtml += '<div class="proj-month-rmb">RMB ' + d.amountRMB.toLocaleString() + '</div>';
+      return '<div class="proj-card"><span class="proj-icon">📋</span><div><div class="proj-name">' + name + '</div><div class="proj-month-num">本月 ' + d.count + ' 单</div>' + amtHtml + '</div></div>';
     }).join('');
   }
 }

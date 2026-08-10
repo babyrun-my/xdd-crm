@@ -2315,7 +2315,13 @@ async function saveNewCustomer() {
   const priceVal = parseFloat(price) || 0;
   const balance = priceVal - depositVal;
   const projOptions = (projectData && projectData.length > 0 ? projectData.filter(function(p){return p.status==='on';}).map(function(p){return p.name;}) : ['马来西亚借票','代办新护照/旅行证','无盖章激活','🚗刷签人去（当天好）','🚗刷签双系统','🚗盖章(7天-10天）','🚗盖章(3天-5天）','✈️盖章(7-10天)','设置柜台服务','罚款SP14天（一本一次）','罚款SP30天（一本一次）','西马一年女佣证','东马半年','东马一年','西马半年演绎证','西马半年老人签','西马续签4年中国结婚证','西马一年PVP','西马学生证两年（1年+1年）','马来西亚考驾校服务','一年工作签开银行服务','马来西亚电子签（EVISA）','APEC（马来西人）','马来西亚和中国双认证服务','VIP快速通道（提前3天）']);
-  const projOpts = projOptions.map(p => `<option${p===project?' selected':''}>${p}</option>`).join('');
+  let projOpts = projOptions.map(p => `<option${p===project?' selected':''}>${p}</option>`).join('');
+  // Same safeguard as buildAndInsertCustRow: never let a project not in the current
+  // 已启用 list silently vanish from the dropdown (e.g. if it was paused between
+  // page load and this row being added).
+  if (project && projOptions.indexOf(project) === -1) {
+    projOpts += `<option value="${project.replace(/"/g,'&quot;')}" selected style="color:#9CA3AF;">${project}（已暂停）</option>`;
+  }
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td style="text-align:center;font-weight:600;color:var(--accent);font-size:13px;">${rowCount}</td>
@@ -3368,6 +3374,14 @@ function buildAndInsertCustRow(d, tbody) {
   var statusOpts = ['未完成','已完成','已取消'];
   var projOptions = (projectData && projectData.length > 0 ? projectData.filter(function(p){return p.status==='on';}).map(function(p){return p.name;}) : ['马来西亚借票','代办新护照/旅行证','无盖章激活','🚗刷签人去（当天好）','🚗刷签双系统','🚗盖章(7天-10天）','🚗盖章(3天-5天）','✈️盖章(7-10天)','设置柜台服务','罚款SP14天（一本一次）','罚款SP30天（一本一次）','西马一年女佣证','东马半年','东马一年','西马半年演绎证','西马半年老人签','西马续签4年中国结婚证','西马一年PVP','西马学生证两年（1年+1年）','马来西亚考驾校服务','一年工作签开银行服务','马来西亚电子签（EVISA）','APEC（马来西人）','马来西亚和中国双认证服务','VIP快速通道（提前3天）']);
   var projOpts = projOptions.map(function(p){ return '<option' + (p===d.project?' selected':'') + '>' + p + '</option>'; }).join('');
+  // If this customer's saved project isn't in the current "已启用" list (most likely because
+  // it was since set to 暂停服务), keep it as its own selected option instead of letting the
+  // <select> silently fall back to whatever project happens to be first in the list. Without
+  // this, the wrong project could get written back to the database the next time any other
+  // field on this row is edited and saved.
+  if (d.project && projOptions.indexOf(d.project) === -1) {
+    projOpts += '<option value="' + d.project.replace(/"/g,'&quot;') + '" selected style="color:#9CA3AF;">' + d.project + '（已暂停）</option>';
+  }
   var progOpts = progressOpts.map(function(o){ return '<option' + (o===(d.progress||'待递交')?' selected':'') + '>' + o + '</option>'; }).join('');
   var statOpts = statusOpts.map(function(o){ return '<option' + (o===(d.status||'未完成')?' selected':'') + '>' + o + '</option>'; }).join('');
   var isCompleted = (d.status === '已完成');

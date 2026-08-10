@@ -1297,6 +1297,25 @@ async function sbSelect(table, query='') {
   const r = await fetch(SB_URL+'/rest/v1/'+table+query, {headers: SB_H});
   return r.ok ? r.json() : [];
 }
+// Supabase/PostgREST caps any single response at the project's Max Rows setting
+// (commonly 1000), regardless of how many rows actually match the query.
+// sbSelectAll loops with limit/offset until a batch comes back short, so callers
+// that need the FULL table (e.g. the customer list + dashboard stats) don't
+// silently get truncated once the table grows past that cap.
+async function sbSelectAll(table, query='') {
+  const BATCH = 1000;
+  let offset = 0;
+  let all = [];
+  while (true) {
+    const sep = query.indexOf('?') === -1 ? '?' : '&';
+    const batch = await sbSelect(table, query + sep + 'limit=' + BATCH + '&offset=' + offset);
+    if (!batch || batch.length === 0) break;
+    all = all.concat(batch);
+    if (batch.length < BATCH) break; // last page was short → no more rows
+    offset += BATCH;
+  }
+  return all;
+}
 async function sbInsert(table, data) {
   const r = await fetch(SB_URL+'/rest/v1/'+table, {method:'POST', headers: SB_H, body: JSON.stringify(data)});
   return r.ok ? r.json() : null;
@@ -3433,7 +3452,7 @@ async function loadCustomersFromSupabase() {
   var tbody = document.getElementById('cust-tbody');
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-light);padding:24px;">加载中...</td></tr>';
-  var rows = await sbSelect('customers', '?order=customer_no.desc');
+  var rows = await sbSelectAll('customers', '?order=customer_no.desc');
   tbody.innerHTML = '';
   if (!rows || rows.length === 0) {
     tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-light);padding:24px;font-size:14px;">暂无客户数据，点击「新增」添加第一个客户</td></tr>';

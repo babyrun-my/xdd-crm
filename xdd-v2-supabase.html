@@ -2757,6 +2757,16 @@ function syncCostFromProject(sel) {
   if (!proj) return;
   const tr = sel.closest('tr');
   if (!tr) return;
+  // Existing (already-saved) customers keep their originally-recorded 本钱
+  // even after the project's reference price changes — only a brand-new row
+  // (no sbId yet) gets auto-filled silently. Touching an existing customer's
+  // project dropdown now asks before overwriting their saved price.
+  // (2026-09-15: fixes accidental retroactive price overwrite on old customers.)
+  const isExisting = !!(tr.dataset.sbId && tr.dataset.sbId.trim());
+  if (isExisting) {
+    const ok = confirm('这是已有客户的记录。确定要把"本钱"改成该项目当前的最新价格吗？\n（原来记录的价格会被覆盖，且无法自动恢复）');
+    if (!ok) { sel.value = sel.defaultValue; return; }
+  }
   const tds = tr.querySelectorAll('td');
   if (tds[13]) {
     const isRmb = proj.cost < 0;

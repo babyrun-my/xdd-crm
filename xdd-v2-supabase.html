@@ -3516,9 +3516,13 @@ function renumberRows() {
   var tbody = document.getElementById('cust-tbody');
   if (!tbody) return;
   var allRows = Array.from(tbody.querySelectorAll('tr'));
-  var total = allRows.length;
+  // Numbers must reflect each row's position in the FULL dataset, not just
+  // the current page's ~100 rows — otherwise every page looks like it starts
+  // back at 1. (2026-09-15: page-aware fix, see pagination change note above.)
+  var pageOffset = (typeof _custCurrentPage === 'number' && _custCurrentPage > 0) ? (_custCurrentPage - 1) * CUST_PAGE_SIZE : 0;
+  var total = (typeof _custTotalCount === 'number' && _custTotalCount > 0) ? _custTotalCount : allRows.length;
   allRows.forEach(function(tr, i) {
-    if (tr.cells[0]) tr.cells[0].textContent = total - i;
+    if (tr.cells[0]) tr.cells[0].textContent = total - pageOffset - i;
   });
 }
 

@@ -2556,74 +2556,109 @@ function printReceipt() {
 }
 
 
-function populateMonthFilter(rows) {
+async function loadMonthFilterOptions() {
   var sel = document.getElementById('month-filter-sel');
   if (!sel) return;
+  // Lightweight: only the submit_date column, for every row — no DOM rows are
+  // built from this, so it stays cheap even as the customer table grows.
+  var rows = await sbSelectAll('customers', '?select=submit_date');
   var months = {};
   rows.forEach(function(r) {
     if (r.submit_date && r.submit_date.length >= 7) {
-      var ym = r.submit_date.slice(0, 7);
-      months[ym] = true;
+      months[r.submit_date.slice(0, 7)] = true;
     }
   });
   var sorted = Object.keys(months).sort().reverse();
+  var keepVal = sel.value;
   sel.innerHTML = '<option value="">月份</option>' + sorted.map(function(ym) {
     var parts = ym.split('-');
     var label = parts[0] + '年' + parseInt(parts[1]) + '月';
     return '<option value="' + ym + '">' + label + '</option>';
   }).join('');
+  sel.value = keepVal;
 }
 
 var _custFilterStatus = '全部';
 var _custFilterMonth = '';
 var _custFilterProject = '';
 var _custCurrentPage = 1;
+var _custTotalCount = 0;
 var CUST_PAGE_SIZE = 100;
+var _custSearchDebounce = null;
 
-function filterCustomers() {
-  var keyword = ((document.getElementById('cust-search') || {}).value || '').toLowerCase().trim();
-  var status = _custFilterStatus;
-  var ym = _custFilterMonth;
-  document.querySelectorAll('#cust-tbody tr').forEach(function(tr) {
-    var tds = tr.querySelectorAll('td');
-    if (tds.length < 5) return; // skip placeholder rows
-    // keyword match: name(1), passport(2), project(4), agent(5)
-    var projSelForSearch = tr.querySelector('.proj-sel');
-    var projValRaw = projSelForSearch ? projSelForSearch.value : (tds[4] ? tds[4].textContent.trim() : '');
-    var name = tds[1] ? tds[1].textContent.trim().toLowerCase() : '';
-    var passport = tds[2] ? tds[2].textContent.trim().toLowerCase() : '';
-    var project = projValRaw.toLowerCase();
-    var agent = tds[5] ? tds[5].textContent.trim().toLowerCase() : '';
-    var matchKeyword = !keyword || name.includes(keyword) || passport.includes(keyword) || project.includes(keyword) || agent.includes(keyword);
-    // month match: col 6
-    var date = tds[6] ? tds[6].textContent.trim() : '';
-    var matchMonth = !ym || date.startsWith(ym);
-    // status match
-    var statusSel = tr.querySelector('.status-sel');
-    var statusVal = statusSel ? statusSel.value : '';
-    var progressSel = tr.querySelector('.progress-sel');
-    var progressVal = progressSel ? progressSel.value : '';
-    var matchStatus = (status === '全部') || (status === '待递交' ? progressVal === '待递交' : statusVal === status);
-    // project match
-    var projVal = projValRaw;
-    var matchProject = !_custFilterProject || projVal === _custFilterProject;
-    tr.dataset.filtered = (matchKeyword && matchMonth && matchStatus && matchProject) ? '1' : '0';
-  });
-  _custCurrentPage = 1;
-  updatePagination();
+// Builds the PostgREST query string for one page of the customer list, applying
+// whatever search keyword / status / month / project filters are active.
+// (2026-09-15: this replaced "load all rows, then hide/show them with CSS" —
+// filtering now happens in the database and only the matching page ever reaches
+// the browser. See the 2026-08-02/09-15 review report for why this changed.)
+function buildCustQuery(offset) {
+  var keyword = ((document.getElementById('cust-search') || {}).value || '').trim();
+  var parts = ['order=customer_no.desc', 'limit=' + CUST_PAGE_SIZE, 'offset=' + offset];
+  if (keyword) {
+    var esc = keyword.replace(/[,()*]/g, ' ').trim();
+    if (esc) {
+      var enc = encodeURIComponent(esc);
+      parts.push('or=(name.ilike.*' + enc + '*,passport.ilike.*' + enc + '*,agent.ilike.*' + enc + '*,project.ilike.*' + enc + '*)');
+    }
+  }
+  if (_custFilterMonth) {
+    parts.push('submit_date=like.' + encodeURIComponent(_custFilterMonth + '%'));
+  }
+  if (_custFilterProject) {
+    parts.push('project=eq.' + encodeURIComponent(_custFilterProject));
+  }
+  if (_custFilterStatus === '待递交') {
+    parts.push('progress=eq.' + encodeURIComponent('待递交'));
+  } else if (_custFilterStatus !== '全部') {
+    parts.push('status=eq.' + encodeURIComponent(_custFilterStatus));
+  }
+  return '?' + parts.join('&');
 }
 
-function updatePagination() {
-  var allRows = Array.from(document.querySelectorAll('#cust-tbody tr[data-sb-id]'));
-  var matchedRows = allRows.filter(function(tr){ return tr.dataset.filtered !== '0'; });
-  var total = matchedRows.length;
+async function fetchCustPage(offset) {
+  var query = buildCustQuery(offset);
+  var r = await fetch(SB_URL + '/rest/v1/customers' + query, {
+    headers: Object.assign({}, SB_H, {'Prefer': 'count=exact'})
+  });
+  var rowsOut = r.ok ? await r.json() : [];
+  var total = 0;
+  var cr = r.headers.get('content-range'); // e.g. "0-99/2294"
+  if (cr && cr.indexOf('/') !== -1) total = parseInt(cr.split('/')[1], 10) || 0;
+  return {rows: rowsOut, total: total};
+}
+
+async function renderCustPage(p) {
+  var tbody = document.getElementById('cust-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-light);padding:24px;">加载中...</td></tr>';
+  var offset = (p - 1) * CUST_PAGE_SIZE;
+  var res = await fetchCustPage(offset);
+  _custCurrentPage = p;
+  _custTotalCount = res.total;
+  tbody.innerHTML = '';
+  if (!res.rows || res.rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-light);padding:24px;font-size:14px;">' + (p === 1 ? '暂无客户数据，点击「新增」添加第一个客户' : '没有更多记录') + '</td></tr>';
+  } else {
+    res.rows.forEach(function(r) { buildAndInsertCustRow(r, tbody); });
+    renumberRows();
+  }
+  updatePaginationDisplay();
+}
+
+// filterCustomers() is called by the search box (oninput) and by filterByStatus/
+// filterByMonth/filterByProject below — every existing onclick/onchange in the
+// HTML already points here, so nothing else needed to change. It used to filter
+// the 2294 rows already sitting in the DOM; now it debounces briefly (so fast
+// typing doesn't fire a request per keystroke) and re-queries Supabase for just
+// the matching page instead.
+function filterCustomers() {
+  clearTimeout(_custSearchDebounce);
+  _custSearchDebounce = setTimeout(function() { renderCustPage(1); }, 300);
+}
+
+function updatePaginationDisplay() {
+  var total = _custTotalCount;
   var totalPages = Math.max(1, Math.ceil(total / CUST_PAGE_SIZE));
-  if (_custCurrentPage > totalPages) _custCurrentPage = totalPages;
-  if (_custCurrentPage < 1) _custCurrentPage = 1;
-  var start = (_custCurrentPage - 1) * CUST_PAGE_SIZE;
-  var end = start + CUST_PAGE_SIZE;
-  allRows.forEach(function(tr){ tr.style.display = 'none'; });
-  matchedRows.forEach(function(tr, i){ if (i >= start && i < end) tr.style.display = ''; });
   var countEl = document.getElementById('cust-record-count');
   if (countEl) countEl.textContent = '共 ' + total + ' 条记录 🔔';
   var btnsEl = document.getElementById('cust-page-btns');
@@ -2644,8 +2679,8 @@ function updatePagination() {
 }
 
 function custGoPage(p) {
-  _custCurrentPage = p;
-  updatePagination();
+  if (p < 1) return;
+  renderCustPage(p);
   var custPage = document.getElementById('page-customers');
   if (custPage) custPage.scrollTop = 0;
 }
@@ -2954,24 +2989,32 @@ async function saveFinanceRecord() {
 
 
 <script>
-function toggleEmergency(btn) {
+async function toggleEmergency(btn) {
   var tr = btn.closest('tr');
   var isActive = btn.classList.toggle('active');
   tr.classList.toggle('emg-row', isActive);
+  // Persist first, then refresh the panel from the database — the panel now
+  // queries Supabase directly (see refreshEmgPanel), so it needs the new [U]
+  // flag to already be saved before it re-reads.
+  if (window.saveFullRowToStorage) await window.saveFullRowToStorage(tr);
   refreshEmgPanel();
-  if (window.saveFullRowToStorage) window.saveFullRowToStorage(tr);
 }
 
 function toggleEmgPanel() {
   document.getElementById('emg-panel').classList.toggle('open');
 }
 
-function refreshEmgPanel() {
+// Urgent customers are flagged with a "[U]" prefix on their note field in the
+// database (see toggleEmergency above and saveFullRowToStorage). This used to
+// scan #cust-tbody for rows already marked emg-row in the DOM; now that the
+// customer table only ever holds one page, it queries Supabase directly instead
+// so an urgent customer on any page still shows up here.
+async function refreshEmgPanel() {
   var body = document.getElementById('emg-panel-body');
   var badge = document.getElementById('emg-count-badge');
   var hCount = document.getElementById('emg-header-count');
   var toggleBtn = document.getElementById('emg-toggle-btn');
-  var emgRows = document.querySelectorAll('#cust-tbody tr.emg-row');
+  var emgRows = await sbSelectAll('customers', '?select=name,passport,note,progress&note=like.' + encodeURIComponent('[U]%'));
   if (badge) badge.textContent = emgRows.length;
   if (hCount) hCount.textContent = '(' + emgRows.length + '位)';
   if (toggleBtn) toggleBtn.style.display = emgRows.length > 0 ? 'flex' : 'none';
@@ -2990,14 +3033,14 @@ function refreshEmgPanel() {
     body.appendChild(p);
     return;
   }
-  emgRows.forEach(function(tr) {
-    var tds = tr.querySelectorAll('td');
-    var name = tds[1] ? tds[1].textContent.trim() : '-';
-    var passport = tds[2] ? tds[2].textContent.trim() : '-';
-    var sel = tds[19] ? tds[19].querySelector('select') : null;
-    var progress = sel ? sel.value : (tds[19] ? tds[19].textContent.trim() : '-');
+  emgRows.forEach(function(r) {
+    var name = r.name || '-';
+    var passport = r.passport || '-';
+    var progress = r.progress || '-';
     var key = passport || name;
-    var note = savedNotes[key] !== undefined ? savedNotes[key] : (tr.dataset.note || '');
+    var rawNote = r.note || '';
+    var defaultNote = rawNote.indexOf('[U]') === 0 ? rawNote.slice(3) : rawNote;
+    var note = savedNotes[key] !== undefined ? savedNotes[key] : defaultNote;
     var card = document.createElement('div');
     card.className = 'emg-card';
     card.dataset.key = key;
@@ -3010,47 +3053,73 @@ function refreshEmgPanel() {
 
 <script>
 // ── Download helpers ──────────────────────────────────────────
-function getVisibleRows() {
-  return Array.from(document.querySelectorAll('#cust-tbody tr[data-sb-id]')).filter(function(tr) {
-    return tr.dataset.filtered !== '0';
+// downloadCSV/downloadExcel used to read whatever rows happened to be loaded in
+// #cust-tbody (filtered by CSS visibility). Now that the table only ever holds
+// one page, they fetch the FULL matching set straight from Supabase instead —
+// so "导出" still exports every matching customer, not just the current page.
+var HEADERS = ['NO','客户姓名','护照号','跟进人','项目内容','代理名字','提交日期','Pass To','Extra Fee','押金','Cost Type','卖价','本钱','利润','分成利润','备注','支付方式','签证有效期','VALID','当前进度','状态'];
+
+function validDaysLabel(visaDate) {
+  if (!visaDate) return '-';
+  var today = new Date(); today.setHours(0,0,0,0);
+  var expiry = new Date(visaDate); expiry.setHours(0,0,0,0);
+  var days = Math.round((expiry - today) / 86400000);
+  if (days < 0) return '已到期';
+  return days + '天';
+}
+
+async function fetchAllMatchingForExport() {
+  // Same filters as the on-screen list (search box + status/month/project),
+  // but without the page limit — export always means "everything that matches".
+  var keyword = ((document.getElementById('cust-search') || {}).value || '').trim();
+  var parts = ['order=customer_no.desc'];
+  if (keyword) {
+    var esc = keyword.replace(/[,()*]/g, ' ').trim();
+    if (esc) {
+      var enc = encodeURIComponent(esc);
+      parts.push('or=(name.ilike.*' + enc + '*,passport.ilike.*' + enc + '*,agent.ilike.*' + enc + '*,project.ilike.*' + enc + '*)');
+    }
+  }
+  if (_custFilterMonth) parts.push('submit_date=like.' + encodeURIComponent(_custFilterMonth + '%'));
+  if (_custFilterProject) parts.push('project=eq.' + encodeURIComponent(_custFilterProject));
+  if (_custFilterStatus === '待递交') parts.push('progress=eq.' + encodeURIComponent('待递交'));
+  else if (_custFilterStatus !== '全部') parts.push('status=eq.' + encodeURIComponent(_custFilterStatus));
+  var rows = await sbSelectAll('customers', '?' + parts.join('&'));
+  var total = rows.length;
+  return rows.map(function(r, i) {
+    var price = parseFloat(r.price) || 0;
+    var cost = parseFloat(r.cost) || 0;
+    return [
+      total - i,
+      r.name || '',
+      r.passport || '',
+      r.followup || '',
+      r.project || '',
+      r.agent || '',
+      r.submit_date || '',
+      r.pass_to || '',
+      r.extra_fee || 0,
+      r.deposit || 0,
+      r.cost_type || 'RM',
+      price,
+      cost,
+      price - cost,
+      r.share_profit || 0,
+      r.remark || '',
+      r.payment || '-',
+      r.visa_date || '',
+      validDaysLabel(r.visa_date),
+      r.progress || '',
+      r.status || ''
+    ];
   });
 }
 
-function getRowData(tr) {
-  var tds = tr.querySelectorAll('td');
-  function cell(i) { var t = tds[i]; return t ? (t.querySelector('select') ? t.querySelector('select').value : (t.querySelector('input') ? t.querySelector('input').value : t.textContent.trim())) : ''; }
-  return [
-    cell(0),  // NO
-    cell(1),  // 客户姓名
-    cell(2),  // 护照号
-    cell(3),  // 跟进人
-    cell(4),  // 项目内容
-    cell(5),  // 代理名字
-    cell(6),  // 提交日期
-    cell(7),  // Pass To
-    cell(8),  // Extra Fee
-    cell(9),  // 押金
-    cell(11), // Cost Type
-    cell(12), // 卖价
-    cell(13), // 本钱
-    cell(15), // 利润
-    cell(14), // 分成利润
-    cell(16), // 备注
-    cell(17), // 支付方式
-    cell(18), // 签证有效期
-    cell(19), // VALID
-    cell(20), // 当前进度
-    cell(21), // 状态
-  ];
-}
-
-var HEADERS = ['NO','客户姓名','护照号','跟进人','项目内容','代理名字','提交日期','Pass To','Extra Fee','押金','Cost Type','卖价','本钱','利润','分成利润','备注','支付方式','签证有效期','VALID','当前进度','状态'];
-
-function downloadCSV() {
-  var rows = getVisibleRows();
+async function downloadCSV() {
+  var rows = await fetchAllMatchingForExport();
   var lines = [HEADERS.join(',')];
-  rows.forEach(function(tr) {
-    lines.push(getRowData(tr).map(function(v) {
+  rows.forEach(function(row) {
+    lines.push(row.map(function(v) {
       return '"' + String(v).replace(/"/g, '""') + '"';
     }).join(','));
   });
@@ -3061,12 +3130,12 @@ function downloadCSV() {
   a.click();
 }
 
-function downloadExcel() {
-  var rows = getVisibleRows();
+async function downloadExcel() {
+  var rows = await fetchAllMatchingForExport();
   var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table>';
   html += '<tr>' + HEADERS.map(function(h){ return '<th style="background:#1e3a5f;color:#fff;font-weight:bold;">' + h + '</th>'; }).join('') + '</tr>';
-  rows.forEach(function(tr) {
-    html += '<tr>' + getRowData(tr).map(function(v){ return '<td>' + v + '</td>'; }).join('') + '</tr>';
+  rows.forEach(function(row) {
+    html += '<tr>' + row.map(function(v){ return '<td>' + v + '</td>'; }).join('') + '</tr>';
   });
   html += '</table></body></html>';
   var blob = new Blob([html], {type: 'application/vnd.ms-excel;charset=utf-8'});
@@ -3077,28 +3146,24 @@ function downloadExcel() {
 }
 // ─────────────────────────────────────────────────────────────
 
-function updateBonusMonth(val) {
+// 奖金池 = 当月「已完成」订单利润 × 10%. Used to scan #cust-tbody for the whole
+// month; now queries Supabase directly for just that month + status, which is
+// both correct under pagination and cheaper than before (only matching rows are
+// fetched, not the whole table).
+async function updateBonusMonth(val) {
   var parts = val.split('-');
-  var y = parseInt(parts[0]), m = parseInt(parts[1]) - 1;
-  var totalProfit = 0;
-  document.querySelectorAll('#cust-tbody tr').forEach(function(tr) {
-    var tds = tr.querySelectorAll('td');
-    if (tds.length < 16) return;
-    var submitDate = tds[6] ? tds[6].textContent.trim() : '';
-    if (!submitDate || submitDate.length < 7) return;
-    var dp = submitDate.split('-');
-    if (parseInt(dp[0]) === y && parseInt(dp[1]) - 1 === m) {
-      var statusSel = tds[21] ? tds[21].querySelector('select') : null;
-      var statusVal = statusSel ? statusSel.value : '';
-      if (statusVal !== '已完成') return;
-      var p = parseFloat((tds[15] ? tds[15].textContent.replace(/,/g,'') : '0')) || 0;
-      totalProfit += p;
-    }
-  });
-  var bonus = Math.round(totalProfit * 0.1);
+  var y = parts[0], m = parts[1];
   var lbl = document.getElementById('bonus-month-label');
   var amt = document.getElementById('bonus-amount');
-  if (lbl) lbl.textContent = parts[0] + '年' + parts[1] + '月 已完成订单利润 × 10%';
+  if (lbl) lbl.textContent = y + '年' + m + '月 已完成订单利润 × 10%';
+  var ym = y + '-' + m;
+  var query = '?select=price,cost&status=eq.' + encodeURIComponent('已完成') + '&submit_date=like.' + encodeURIComponent(ym + '%');
+  var rows = await sbSelectAll('customers', query);
+  var totalProfit = 0;
+  rows.forEach(function(r) {
+    totalProfit += (parseFloat(r.price)||0) - (parseFloat(r.cost)||0);
+  });
+  var bonus = Math.round(totalProfit * 0.1);
   if (amt) amt.textContent = bonus.toLocaleString();
 }
 (function() {
@@ -3173,10 +3238,7 @@ function doLogout() {
 // ===== LOAD SAVED CUSTOMERS FROM LOCALSTORAGE =====
 
 // ===== SYNC DASHBOARD =====
-function syncDashboard() {
-  var rows = document.querySelectorAll('#cust-tbody tr');
-
-  // Use Malaysia local time (not UTC)
+function syncDashboardFromData(rowsIn) {
   var now = new Date();
   var nowYear = now.getFullYear();
   var nowMonth = now.getMonth();
@@ -3184,7 +3246,6 @@ function syncDashboard() {
   var todayStr = nowYear + '-' + String(nowMonth+1).padStart(2,'0') + '-' + String(thisDate).padStart(2,'0');
   var today = new Date(nowYear, nowMonth, thisDate); // local midnight, no UTC shift
 
-  // Read month picker for monthly stats
   var dashPicker = document.getElementById('dash-month-picker');
   if (dashPicker && !dashPicker.value) {
     dashPicker.value = nowYear + '-' + String(nowMonth+1).padStart(2,'0');
@@ -3197,14 +3258,12 @@ function syncDashboard() {
     thisMonth = parseInt(dp[1]) - 1;
   }
 
-  // Update date display
   var weekdays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
   var dateEl = document.getElementById('dash-today-date');
   if (dateEl) dateEl.textContent = todayStr;
   var wdEl = document.getElementById('dash-today-weekday');
   if (wdEl) wdEl.textContent = weekdays[today.getDay()];
 
-  // Month label
   var monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
   var monthLabel = thisYear + '年 ' + monthNames[thisMonth];
   ['dash-month-label','dash-month-revenue-label','dash-month-profit-label'].forEach(function(id){
@@ -3212,8 +3271,8 @@ function syncDashboard() {
     if (el) el.textContent = monthLabel + ' 数据';
   });
 
+  var rows = rowsIn || [];
   if (!rows.length) {
-    // No data yet — show zeros
     ['dash-today-orders','dash-today-profit-rm','dash-today-profit-rmb','dash-month-customers','dash-month-revenue-rm','dash-month-revenue-rmb','dash-month-profit-rm','dash-month-profit-rmb',
      'dash-pending-submit','dash-pending-docs','dash-payment-due','dash-expire-30','dash-expire-60','dash-expire-90'].forEach(function(id){
       var el = document.getElementById(id);
@@ -3231,26 +3290,20 @@ function syncDashboard() {
   var expire30 = 0, expire60 = 0, expire90 = 0;
   var incomplete = 0, complete = 0, monthNew = 0;
   var projMap = {};
+  var paymentTotalRM = 0, paymentTotalRMB = 0;
 
-  rows.forEach(function(tr) {
-    var tds = tr.querySelectorAll('td');
-    if (tds.length < 20) return;
-
-    var submitDate = tds[6] ? tds[6].textContent.trim() : '';
-    var sellTxt = tds[12] ? tds[12].textContent.replace(/,/g,'').trim() : '0';
-    var profitTxt = tds[15] ? tds[15].textContent.replace(/,/g,'').trim() : '0';
-    var sell = parseFloat(sellTxt) || 0;
-    var profit = parseFloat(profitTxt) || 0;
-    var progressSel = tds[20] ? tds[20].querySelector('select') : null;
-    var progress = progressSel ? progressSel.value : '';
-    var statusSel = tds[21] ? tds[21].querySelector('select') : null;
-    var status = statusSel ? statusSel.value : '';
-    var projSel = tds[4] ? tds[4].querySelector('select') : null;
-    var projName = projSel ? projSel.value : (tds[4] ? tds[4].textContent.trim() : '');
-    var dateInput = tds[18] ? tds[18].querySelector('input[type="date"]') : null;
-    var visaDate = dateInput ? dateInput.value : '';
-    var costTypeSel = tds[11] ? tds[11].querySelector('select') : null;
-    var costType = costTypeSel ? costTypeSel.value : 'RM';
+  rows.forEach(function(r) {
+    var submitDate = r.submit_date || '';
+    var sell = parseFloat(r.price) || 0;
+    var cost = parseFloat(r.cost) || 0;
+    var profit = sell - cost;
+    var progress = r.progress || '';
+    var status = r.status || '';
+    var projName = r.project || '';
+    var visaDate = r.visa_date || '';
+    var costType = r.cost_type || 'RM';
+    var deposit = parseFloat(r.deposit) || 0;
+    var balance = sell - deposit;
 
     // Today stats
     if (submitDate === todayStr) {
@@ -3282,9 +3335,10 @@ function syncDashboard() {
     if (progress === '待递交') pendingSubmit++;
     if (progress === '待补资料') pendingDocs++;
     if (progress === '审批中') pendingReview++;
-    var balanceTxt = tds[10] ? tds[10].textContent.replace(/,/g,'').trim() : '0';
-    var balanceVal = parseFloat(balanceTxt) || 0;
-    if (balanceVal > 0) paymentDue++;
+    if (balance > 0) {
+      paymentDue++;
+      if (costType === 'RMB') paymentTotalRMB += balance; else paymentTotalRM += balance;
+    }
 
     // Status
     if (status === '未完成') incomplete++;
@@ -3326,19 +3380,6 @@ function syncDashboard() {
   setEl('dash-pending-docs', pendingDocs);
   setEl('dash-pending-review', pendingReview);
   setEl('dash-payment-due', paymentDue);
-  // Sum all balance values for 待付款预估
-  var paymentTotal = 0, paymentTotalRM = 0, paymentTotalRMB = 0;
-  rows.forEach(function(tr) {
-    var tds = tr.querySelectorAll('td');
-    if (tds.length < 11) return;
-    var bv = parseFloat((tds[10] ? tds[10].textContent.replace(/,/g,'') : '0')) || 0;
-    if (bv > 0) {
-      paymentTotal += bv;
-      var ctSel = tds[11] ? tds[11].querySelector('select') : null;
-      var ct = ctSel ? ctSel.value : 'RM';
-      if (ct === 'RMB') paymentTotalRMB += bv; else paymentTotalRM += bv;
-    }
-  });
   var ptEl = document.getElementById('dash-payment-total');
   if (ptEl) ptEl.textContent = paymentTotalRM.toLocaleString();
   var ptRmbEl = document.getElementById('dash-payment-total-rmb');
@@ -3367,6 +3408,25 @@ function syncDashboard() {
       return '<div class="proj-card"><span class="proj-icon">📋</span><div><div class="proj-name">' + name + '</div><div class="proj-month-num">本月 ' + d.count + ' 单</div>' + amtHtml + '</div></div>';
     }).join('');
   }
+}
+
+// Lightweight full-table scan that feeds syncDashboardFromData above — only the
+// ~9 columns the stats need, for every row, with NO DOM rows built from it. This
+// is what replaced scanning #cust-tbody (which only holds one page now).
+var DASH_STAT_COLS = 'submit_date,visa_date,progress,status,price,cost,deposit,cost_type,project';
+async function loadDashboardStatsFromSupabase() {
+  var rows = await sbSelectAll('customers', '?select=' + DASH_STAT_COLS);
+  syncDashboardFromData(rows);
+}
+
+// syncDashboard() is called from many places after a row is edited (price,
+// status, visa date, etc.) to refresh the dashboard numbers. It used to just
+// re-scan the DOM for free; it now re-runs the lightweight Supabase scan above
+// instead, debounced so a burst of edits doesn't fire a burst of requests.
+var _dashRefreshTimer = null;
+function syncDashboard() {
+  clearTimeout(_dashRefreshTimer);
+  _dashRefreshTimer = setTimeout(loadDashboardStatsFromSupabase, 600);
 }
 
 function buildAndInsertCustRow(d, tbody) {
@@ -3463,21 +3523,9 @@ function renumberRows() {
 }
 
 async function loadCustomersFromSupabase() {
-  var tbody = document.getElementById('cust-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-light);padding:24px;">加载中...</td></tr>';
-  var rows = await sbSelectAll('customers', '?order=customer_no.desc');
-  tbody.innerHTML = '';
-  if (!rows || rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-light);padding:24px;font-size:14px;">暂无客户数据，点击「新增」添加第一个客户</td></tr>';
-  } else {
-    rows.forEach(function(r) { buildAndInsertCustRow(r, tbody); });
-    renumberRows();
-    populateMonthFilter(rows);
-  }
-  if (typeof updatePagination === 'function') updatePagination();
-  if (typeof syncDashboard === 'function') syncDashboard();
-  if (typeof filterCustomers === 'function') filterCustomers();
+  await renderCustPage(1);
+  loadMonthFilterOptions();
+  loadDashboardStatsFromSupabase();
 }
 // ── Save row to Supabase ──
 window.saveFullRowToStorage = function(tr) {
@@ -3514,7 +3562,7 @@ window.saveFullRowToStorage = function(tr) {
     status:      statSel ? statSel.value : '未完成',
     note:        (tr.querySelector('.emg-btn') && tr.querySelector('.emg-btn').classList.contains('active') ? '[U]' : '') + (tr.dataset.note || '')
   };
-  sbUpdate('customers', sbId, data);
+  return sbUpdate('customers', sbId, data);
 };
 
 // ── Delete customer row ──

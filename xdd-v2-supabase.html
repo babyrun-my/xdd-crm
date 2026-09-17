@@ -80,8 +80,9 @@
     padding: 16px 0;
     position: fixed;
     top: 60px; bottom: 0; left: 0;
-    overflow-y: auto;
+    overflow-y: auto; overflow-x: hidden;
     border-right: 1px solid rgba(255,255,255,0.06);
+    transition: width 0.2s;
   }
   .nav-item {
     display: flex; align-items: center; gap: 10px;
@@ -90,6 +91,7 @@
     cursor: pointer; font-size: 14px; font-weight: 500;
     border-left: 3px solid transparent;
     transition: all 0.2s;
+    white-space: nowrap;
   }
   .nav-item:hover { background: rgba(255,255,255,0.06); color: white; }
   .nav-item.active {
@@ -102,9 +104,22 @@
     display: block; text-align: center; font-size: 52px; line-height: 1;
     opacity: 0.85;
   }
+  /* Collapsed sidebar: icons only, more room for the page content */
+  .sidebar.collapsed { width: 56px; min-width: 56px; }
+  .sidebar.collapsed .nav-item { padding: 12px 0; justify-content: center; }
+  .sidebar.collapsed .nav-label { display: none; }
+  .sidebar.collapsed .doraemon-side { display: none; }
+  .sidebar-toggle-btn {
+    color: rgba(255,255,255,0.75); font-size: 18px; cursor: pointer;
+    width: 30px; height: 30px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  .sidebar-toggle-btn:hover { background: rgba(255,255,255,0.1); color: white; }
 
   /* ── MAIN CONTENT ── */
-  .main { margin-left: 160px; flex: 1; min-width: 0; padding: 24px 24px 80px; }
+  .main { margin-left: 160px; flex: 1; min-width: 0; padding: 24px 24px 80px; transition: margin-left 0.2s; }
+  .main.sidebar-collapsed { margin-left: 56px; }
 
   /* ── STARS DECO ── */
   .stars { pointer-events: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; z-index: 0; }
@@ -639,6 +654,7 @@
 <!-- Top Bar -->
 <div class="topbar">
   <div class="logo-area">
+    <div class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleSidebar()" title="收起/展开侧边栏">☰</div>
     <div class="logo-circle" id="dora-logo"></div>
     <div>
       <div class="logo-text">小叮当服务团队群 🔔</div>
@@ -658,29 +674,29 @@
 <div class="layout">
 
   <!-- Sidebar -->
-  <div class="sidebar">
-    <div class="nav-item active" onclick="showPage('dashboard',this)">
-      <span class="nav-icon">🏠</span> 首页
+  <div class="sidebar" id="main-sidebar">
+    <div class="nav-item active" onclick="showPage('dashboard',this)" title="首页">
+      <span class="nav-icon">🏠</span> <span class="nav-label">首页</span>
     </div>
-    <div class="nav-item" onclick="showPage('customers',this)">
-      <span class="nav-icon">👥</span> 客户
+    <div class="nav-item" onclick="showPage('customers',this)" title="客户">
+      <span class="nav-icon">👥</span> <span class="nav-label">客户</span>
     </div>
-    <div class="nav-item" onclick="showPage('addcustomer',this)">
-      <span class="nav-icon">➕</span> 新增
+    <div class="nav-item" onclick="showPage('addcustomer',this)" title="新增">
+      <span class="nav-icon">➕</span> <span class="nav-label">新增</span>
     </div>
-    <div class="nav-item" onclick="showPage('projects',this)">
-      <span class="nav-icon">📋</span> 项目内容
+    <div class="nav-item" onclick="showPage('projects',this)" title="项目内容">
+      <span class="nav-icon">📋</span> <span class="nav-label">项目内容</span>
     </div>
-    <div class="nav-item" onclick="showPage('finance',this)">
-      <span class="nav-icon">📊</span> 财务
+    <div class="nav-item" onclick="showPage('finance',this)" title="财务">
+      <span class="nav-icon">📊</span> <span class="nav-label">财务</span>
     </div>
-    <div class="nav-item" onclick="showPage('workorder',this)">
-      <span class="nav-icon">📝</span> 工单
+    <div class="nav-item" onclick="showPage('workorder',this)" title="工单">
+      <span class="nav-icon">📝</span> <span class="nav-label">工单</span>
     </div>
-    <div class="nav-item" onclick="showPage('archive',this)">
-      <span class="nav-icon">🗂</span> 归档
+    <div class="nav-item" onclick="showPage('archive',this)" title="归档">
+      <span class="nav-icon">🗂</span> <span class="nav-label">归档</span>
     </div>
-    <div class="nav-item" id="nav-claim-side" onclick="openClaimAccess(this)">
+    <div class="nav-item" id="nav-claim-side" onclick="openClaimAccess(this)" title="申请报销">
       <span class="nav-icon">📝</span> <span class="nav-label">申请报销</span>
     </div>
     <div class="doraemon-side" id="dora-sidebar"></div>
@@ -1292,6 +1308,26 @@
 const SB_URL = 'https://kkxdhkqatalgxbsogyly.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreGRoa3FhdGFsZ3hic29neWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDQ4NTksImV4cCI6MjA5ODI4MDg1OX0.ewte2esrv1cOFQ5GngSA7dZqJkHCyiCcUXErxKxlClk';
 const SB_H = {'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation'};
+
+// ===== SIDEBAR COLLAPSE (2026-09-17: more room for the customer table) =====
+function toggleSidebar() {
+  var sidebar = document.getElementById('main-sidebar');
+  var main = document.querySelector('.main');
+  if (!sidebar) return;
+  var collapsed = sidebar.classList.toggle('collapsed');
+  if (main) main.classList.toggle('sidebar-collapsed', collapsed);
+  try { localStorage.setItem('xdd_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e) {}
+}
+(function restoreSidebarState() {
+  try {
+    if (localStorage.getItem('xdd_sidebar_collapsed') === '1') {
+      var sidebar = document.getElementById('main-sidebar');
+      var main = document.querySelector('.main');
+      if (sidebar) sidebar.classList.add('collapsed');
+      if (main) main.classList.add('sidebar-collapsed');
+    }
+  } catch(e) {}
+})();
 
 async function sbSelect(table, query='') {
   const r = await fetch(SB_URL+'/rest/v1/'+table+query, {headers: SB_H});
